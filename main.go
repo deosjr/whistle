@@ -12,14 +12,20 @@ import (
 func main() {
     env := GlobalEnv()
     for _, s := range []string{
-            "(define x 5)",
-            "(+ ((lambda (x) (+ x (* x 10))) 3) x)",
-            "(+ (let ((x 3)) (+ x (* x 10))) x)",
+        `(define find (lambda (proc list) 
+            (let ((x (car list)))
+            (cond
+                ((proc x) x)
+                (else (find proc (cdr list)))
+        ))))`,
+        "(find (lambda (x) (= x 2)) (quote (1 2)))",
     }{
         t := parse(s)
         fmt.Println(t)
         e := evalEnv(t, env)
-        fmt.Println(e)
+        if e.String() != "" {
+            fmt.Println(e)
+        }
     }
 }
 
@@ -103,6 +109,15 @@ func GlobalEnv() Env {
     }},
     "cdr": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         return ExpOrProc{isExp: true, value: Exp{isList:true, value: args[0].exp().list()[1:]}}
+    }},
+    "cons": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        var value []ExpOrProc
+        if args[1].isExp && args[1].exp().isList {
+            value = append([]ExpOrProc{args[0]}, args[1].exp().list()...)
+        } else {
+            value = []ExpOrProc{args[0], args[1]}
+        }
+        return ExpOrProc{isExp: true, value: Exp{isList:true, value: value}}
     }},
     }, outer: nil}
 }
@@ -197,16 +212,19 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
             case "if":
                 test := l[1]
                 conseq := l[2]
-                alt := l[3]
                 if evalEnv(test, env).exp().atom().value.(bool) {
                     return evalEnv(conseq, env)
                 }
+                if len(l) == 3 {
+                    return ExpOrProc{isExp:true, value: Exp{value:Atom{value: false}}}
+                }
+                alt := l[3]
                 return evalEnv(alt, env)
             case "define":
                 sym := l[1].exp().atom().symbol()
                 exp := l[2]
                 env.dict[sym] = evalEnv(exp, env)
-                return ExpOrProc{isExp:true, value: Exp{value:Atom{value: 0.0}}}
+                return ExpOrProc{isExp:true, value: Exp{value:Atom{value: false}}}
             case "quote":
                 return l[1]
             case "lambda":

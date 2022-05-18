@@ -21,7 +21,6 @@ func TestLisp(t *testing.T) {
         },
         {
             input: "(define circle-area (lambda (r) (* pi (* r r))))",
-            want:  "0",
         },
         {
             input: "(circle-area 3)",
@@ -47,7 +46,6 @@ func TestLisp(t *testing.T) {
             input: `(define fact 
             (lambda (n) 
                 (if (<= n 1) 1 (* n (fact (- n 1))))))`,
-            want: "0",
         },
         {
             input: "(fact 10)",
@@ -55,7 +53,6 @@ func TestLisp(t *testing.T) {
         },
         {
             input: "(define twice (lambda (x) (* 2 x)))",
-            want:  "0",
         },
         {
             input: "(twice 5)",
@@ -63,7 +60,6 @@ func TestLisp(t *testing.T) {
         },
         {
             input: "(define repeat (lambda (f) (lambda (x) (f (f x)))))",
-            want:  "0",
         },
         {
             input: "((repeat twice) 10)",
@@ -89,11 +85,30 @@ func TestLisp(t *testing.T) {
         },
         {
             input: "(define x 5)",
-            want:  "0",
         },
         {
             input: "(+ (let ((x 3)) (+ x (* x 10))) x)",
             want:  "38",
+        },
+        {
+            input: "(cons 1 5)",
+            want:  "[1 5]",
+        },
+        {
+            input: "(cons 1 (quote (2 3)))",
+            want:  "[1 2 3]",
+        },
+        {
+            input: `(define find (lambda (proc list) 
+            (let ((x (car list)))
+            (cond
+                ((proc x) x)
+                (else (find proc (cdr list)))
+            ))))`,
+        },
+        {
+            input: "(find (lambda (x) (= x 2)) (quote (1 2)))",
+            want:  "2",
         },
     }{
         p := parse(tt.input)

@@ -51,6 +51,34 @@ func TestLisp(t *testing.T) {
             input: "(fact 10)",
             want:  "3628800",
         },
+        {
+            input: "(define twice (lambda (x) (* 2 x)))",
+            want:  "0",
+        },
+        {
+            input: "(twice 5)",
+            want:  "10",
+        },
+        {
+            input: "(define repeat (lambda (f) (lambda (x) (f (f x)))))",
+            want:  "0",
+        },
+        {
+            input: "((repeat twice) 10)",
+            want:  "40",
+        },
+        {
+            input: "((repeat (repeat twice)) 10)",
+            want:  "160",
+        },
+        {
+            input: "((repeat (repeat (repeat twice))) 10)",
+            want:  "2560",
+        },
+        {
+            input: "((repeat (repeat (repeat (repeat twice)))) 10)",
+            want:  "655360",
+        },
     }{
         p := parse(tt.input)
         e := evalEnv(p, env)

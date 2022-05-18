@@ -12,14 +12,13 @@ import (
 func main() {
     env := GlobalEnv()
     for _, s := range []string{
-        "(begin (define r 10) (* pi (* r r)))",
-        "(if (> (* 11 11) 120) (* 7 6) oops)",
-        "(define circle-area (lambda (r) (* pi (* r r))))",
-        "(circle-area 3)",
-        "(quote quoted)",
-        "(if (number? (quote ())) 4 5)",
-        "(car (quote (1 2 3)))",
-        "(cdr (quote (1 2 3)))",
+            "(define twice (lambda (x) (* 2 x)))",
+            "(twice 5)",
+            "(define repeat (lambda (f) (lambda (x) (f (f x)))))",
+            "((repeat twice) 10)",
+            "((repeat (repeat twice)) 10)",
+            "((repeat (repeat (repeat twice))) 10)",
+            "((repeat (repeat (repeat (repeat twice)))) 10)",
     }{
         t := parse(s)
         fmt.Println(t)
@@ -135,36 +134,40 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
         }
         // list
         l := e.list()
-        switch l[0].exp().atom().symbol() {
-        case "if":
-            test := l[1]
-            conseq := l[2]
-            alt := l[3]
-            if evalEnv(test, env).exp().atom().value.(bool) {
-                return evalEnv(conseq, env)
+        first := l[0].exp()
+        if !first.isList {
+            switch l[0].exp().atom().symbol() {
+            case "if":
+                test := l[1]
+                conseq := l[2]
+                alt := l[3]
+                if evalEnv(test, env).exp().atom().value.(bool) {
+                    return evalEnv(conseq, env)
+                }
+                return evalEnv(alt, env)
+            case "define":
+                sym := l[1].exp().atom().symbol()
+                exp := l[2]
+                env.dict[sym] = evalEnv(exp, env)
+                return ExpOrProc{isExp:true, value: Exp{value:Atom{value: 0.0}}}
+            case "quote":
+                return l[1]
+            case "lambda":
+                params := l[1]
+                body := l[2]
+                return ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+                    return evalEnv(body, newEnv(params, args, env))
+                }}
+            // default: falls through to procedure call
             }
-            return evalEnv(alt, env)
-        case "define":
-            sym := l[1].exp().atom().symbol()
-            exp := l[2]
-            env.dict[sym] = evalEnv(exp, env)
-            return ExpOrProc{isExp:true, value: Exp{value:Atom{value: 0.0}}}
-        case "quote":
-            return l[1]
-        case "lambda":
-            params := l[1]
-            body := l[2]
-            return ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-                return evalEnv(body, newEnv(params, args, env))
-            }}
-        default: // procedure call
-            proc := evalEnv(l[0], env).proc()
-            args := make([]ExpOrProc, len(l)-1)
-            for i:=0; i < len(args); i++ {
-                args[i] = evalEnv(l[i+1], env)
-            }
-            return proc(args)
         }
+        // procedure call
+        proc := evalEnv(l[0], env).proc()
+        args := make([]ExpOrProc, len(l)-1)
+        for i:=0; i < len(args); i++ {
+            args[i] = evalEnv(l[i+1], env)
+        }
+        return proc(args)
     }
     // proc
     return x // TODO

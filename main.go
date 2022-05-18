@@ -11,14 +11,10 @@ import (
 
 func main() {
     env := GlobalEnv()
+    loadKanren(env)
     for _, s := range []string{
-        `(define find (lambda (proc list) 
-            (let ((x (car list)))
-            (cond
-                ((proc x) x)
-                (else (find proc (cdr list)))
-        ))))`,
-        "(find (lambda (x) (= x 2)) (quote (1 2)))",
+        "(define empty-state (quote (() 0)))",
+        "((call/fresh (lambda (q) (equalo q 5))) empty-state)",
     }{
         t := parse(s)
         fmt.Println(t)
@@ -90,6 +86,18 @@ func GlobalEnv() Env {
     "<=": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         return atomWithValue( number(args[0]) <= number(args[1]) )
     }},
+    "#t": atomWithValue(true),
+    "#f": atomWithValue(false),
+    "and": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        and := true
+        for _, a := range args {
+            and = and && boolean(a)
+            if !and {
+                break
+            }
+        }
+        return atomWithValue(and)
+    }},
     "pi": atomWithValue( math.Pi ),
     "begin": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc { return args[len(args)-1] }},
     "number?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
@@ -104,11 +112,30 @@ func GlobalEnv() Env {
         a := e.atom()
         return atomWithValue( !a.isSymbol )
     }},
+    "pair?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        x := args[0]
+        if !x.isExp {
+            return atomWithValue(false)
+        }
+        e := x.exp()
+        if !e.isList {
+            return atomWithValue(false)
+        }
+        l := e.list()
+        return atomWithValue( len(l) == 2 )
+    }},
     "car": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         return args[0].exp().list()[0]
     }},
     "cdr": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-        return ExpOrProc{isExp: true, value: Exp{isList:true, value: args[0].exp().list()[1:]}}
+        l := args[0].exp().list()
+        // TODO: cdr on a pair returns value, not list
+        return ExpOrProc{isExp: true, value: Exp{isList:true, value: l[1:]}}
+    }},
+    // TODO: remove
+    "paircdr": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        l := args[0].exp().list()
+        return l[1]
     }},
     "cons": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         var value []ExpOrProc
@@ -118,6 +145,18 @@ func GlobalEnv() Env {
             value = []ExpOrProc{args[0], args[1]}
         }
         return ExpOrProc{isExp: true, value: Exp{isList:true, value: value}}
+    }},
+    "null?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        x := args[0]
+        if !x.isExp {
+            return atomWithValue(false)
+        }
+        e := x.exp()
+        if !e.isList {
+            return atomWithValue(false)
+        }
+        l := e.list()
+        return atomWithValue( len(l) == 0 )
     }},
     }, outer: nil}
 }
@@ -137,7 +176,7 @@ func expandMacro(l []ExpOrProc) []ExpOrProc {
     s := l[0].exp().atom().symbol()
     switch s {
     case "cond":
-        var expanded ExpOrProc
+        expanded := atomWithValue(false)
         clauses := l[1:]
         for i := len(clauses)-1; i>=0; i-- {
             clause := clauses[i].exp().list()
@@ -156,7 +195,6 @@ func expandMacro(l []ExpOrProc) []ExpOrProc {
             for _, c := range clause[1:] {
                 begin = append(begin, c)
             }
-            // TODO: if no else, expanded starts as number 0 ?
             expanded = ExpOrProc{isExp: true, value: Exp{isList: true, value: []ExpOrProc{
                 ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "if"}}},
                 cond,
@@ -212,7 +250,9 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
             case "if":
                 test := l[1]
                 conseq := l[2]
-                if evalEnv(test, env).exp().atom().value.(bool) {
+                tested := evalEnv(test, env)
+                if isTruthy(tested) {
+                //if tested.exp().atom().value.(bool) {
                     return evalEnv(conseq, env)
                 }
                 if len(l) == 3 {

@@ -75,7 +75,10 @@ func (e ExpOrProc) proc() Proc {
     return e.value.(Proc)
 }
 func (e ExpOrProc) String() string {
-    return e.exp().String()
+    if e.isExp {
+        return e.exp().String()
+    }
+    return "#<proc>"
 }
 
 type Proc = func([]ExpOrProc) ExpOrProc
@@ -89,11 +92,17 @@ func (e Env) find(s Symbol) Env {
     if _, ok := e.dict[s]; ok {
         return e
     }
+    if e.outer == nil {
+        panic(fmt.Sprintf("not found in env: %s", s))
+    }
     return e.outer.find(s)
 }
 
 func number(e ExpOrProc) float64 {
     return e.exp().atom().number()
+}
+func boolean(e ExpOrProc) bool {
+    return e.exp().atom().value.(bool)
 }
 
 func atomWithValue(x any) ExpOrProc {
@@ -106,4 +115,14 @@ func isAtom(x ExpOrProc) bool {
     }
     e := x.exp()
     return !e.isList
+}
+
+func isTruthy(x ExpOrProc) bool {
+    if isAtom(x) {
+        a := x.exp().atom()
+        if b, ok := a.value.(bool); ok {
+            return b
+        }
+    }
+    return true
 }

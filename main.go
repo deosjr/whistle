@@ -79,6 +79,9 @@ func GlobalEnv() Env {
     "-": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         return atomWithValue( number(args[0]) - number(args[1]) )
     }},
+    "=": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        return atomWithValue( number(args[0]) == number(args[1]) )
+    }},
     ">": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         return atomWithValue( number(args[0]) > number(args[1]) )
     }},
@@ -116,6 +119,43 @@ func newEnv(params ExpOrProc, args []ExpOrProc, outer Env) Env {
     return Env{dict: m, outer: &outer}
 }
 
+func expandMacro(l []ExpOrProc) []ExpOrProc {
+    s := l[0].exp().atom().symbol()
+    switch s {
+    case "cond":
+        var expanded ExpOrProc
+        clauses := l[1:]
+        for i := len(clauses)-1; i>=0; i-- {
+            clause := clauses[i].exp().list()
+            cond := clause[0]
+            if isAtom(cond) {
+                if cond.exp().atom().symbol() != "else" {
+                    panic("expected else")
+                }
+                if i != len(clauses)-1 {
+                    panic("else is not last in cond")
+                }
+                expanded = clause[1]
+                continue
+            }
+            begin := []ExpOrProc{ {isExp: true, value: Exp{value: Atom{isSymbol: true, value: "begin"}}} }
+            for _, c := range clause[1:] {
+                begin = append(begin, c)
+            }
+            // TODO: if no else, expanded starts as number 0 ?
+            expanded = ExpOrProc{isExp: true, value: Exp{isList: true, value: []ExpOrProc{
+                ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "if"}}},
+                cond,
+                ExpOrProc{isExp: true, value: Exp{isList: true, value: begin }},
+                expanded,
+            }}}
+        }
+        return expanded.exp().list()
+    default:
+        return l
+    }
+}
+
 func eval(e Exp) Exp {
     eop := ExpOrProc{isExp: true, value: e}
     return evalEnv(eop, GlobalEnv()).exp()
@@ -136,7 +176,9 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
         l := e.list()
         first := l[0].exp()
         if !first.isList {
-            switch l[0].exp().atom().symbol() {
+            l = expandMacro(l)
+            s := l[0].exp().atom().symbol()
+            switch s {
             case "if":
                 test := l[1]
                 conseq := l[2]

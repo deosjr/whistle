@@ -44,7 +44,9 @@ func TestLisp(t *testing.T) {
             want:  "[2 3]",
         },
         {
-            input: "(define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))",
+            input: `(define fact 
+            (lambda (n) 
+                (if (<= n 1) 1 (* n (fact (- n 1))))))`,
             want: "0",
         },
         {
@@ -78,6 +80,12 @@ func TestLisp(t *testing.T) {
         {
             input: "((repeat (repeat (repeat (repeat twice)))) 10)",
             want:  "655360",
+        },
+        {
+            input: `((lambda (a b) (cond ((= a 4) 6)
+                          ((= b 4) (+ 6 7))
+                          (else 25))) 1 4)`,
+            want:  "13",
         },
     }{
         p := parse(tt.input)

@@ -31,6 +31,7 @@ func (a Atom) String() string {
 }
 
 type List = []Exp
+
 type Exp struct {
     isList bool // atom if false
     value any
@@ -94,4 +95,12 @@ func number(e ExpOrProc) float64 {
 
 func atomWithValue(x any) ExpOrProc {
     return ExpOrProc{isExp: true, value: Exp{value: Atom{value: x}}}
+}
+
+func isAtom(x ExpOrProc) bool {
+    if !x.isExp {
+        return false
+    }
+    e := x.exp()
+    return !e.isList
 }

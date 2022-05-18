@@ -10,26 +10,28 @@ import (
 )
 
 func main() {
+    env := GlobalEnv()
     for _, s := range []string{
         "(begin (define r 10) (* pi (* r r)))",
         "(if (> (* 11 11) 120) (* 7 6) oops)",
         "(define circle-area (lambda (r) (* pi (* r r))))",
         "(circle-area 3)",
         "(quote quoted)",
-        "(define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))",
-        "(fact 10)",
+        "(if (number? (quote ())) 4 5)",
+        "(car (quote (1 2 3)))",
+        "(cdr (quote (1 2 3)))",
     }{
         t := parse(s)
         fmt.Println(t)
-        e := eval(t)
+        e := evalEnv(t, env)
         fmt.Println(e)
     }
 }
 
-func parse(program string) Exp {
+func parse(program string) ExpOrProc {
     s := tokenize(program)
     p, _ := readFromTokens(s)
-    return p.exp()
+    return p
 }
 
 func tokenize(s string) []string {
@@ -67,7 +69,8 @@ func atom(token string) Atom {
     return Atom{isSymbol: true, value: token}
 }
 
-var GlobalEnv = Env{ dict: map[Symbol]ExpOrProc{
+func GlobalEnv() Env {
+    return Env{ dict: map[Symbol]ExpOrProc{
     "*": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         return atomWithValue( number(args[0]) * number(args[1]) )
     }},
@@ -85,7 +88,26 @@ var GlobalEnv = Env{ dict: map[Symbol]ExpOrProc{
     }},
     "pi": atomWithValue( math.Pi ),
     "begin": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc { return args[len(args)-1] }},
-}, outer: nil}
+    "number?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        x := args[0]
+        if !x.isExp {
+            return atomWithValue(false)
+        }
+        e := x.exp()
+        if e.isList {
+            return atomWithValue(false)
+        }
+        a := e.atom()
+        return atomWithValue( !a.isSymbol )
+    }},
+    "car": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        return args[0].exp().list()[0]
+    }},
+    "cdr": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        return ExpOrProc{isExp: true, value: Exp{isList:true, value: args[0].exp().list()[1:]}}
+    }},
+    }, outer: nil}
+}
 
 func newEnv(params ExpOrProc, args []ExpOrProc, outer Env) Env {
     m := map[Symbol]ExpOrProc{}
@@ -97,7 +119,7 @@ func newEnv(params ExpOrProc, args []ExpOrProc, outer Env) Env {
 
 func eval(e Exp) Exp {
     eop := ExpOrProc{isExp: true, value: e}
-    return evalEnv(eop, GlobalEnv).exp()
+    return evalEnv(eop, GlobalEnv()).exp()
 }
 
 func evalEnv(x ExpOrProc, env Env) ExpOrProc {

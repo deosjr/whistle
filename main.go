@@ -12,13 +12,9 @@ import (
 func main() {
     env := GlobalEnv()
     for _, s := range []string{
-            "(define twice (lambda (x) (* 2 x)))",
-            "(twice 5)",
-            "(define repeat (lambda (f) (lambda (x) (f (f x)))))",
-            "((repeat twice) 10)",
-            "((repeat (repeat twice)) 10)",
-            "((repeat (repeat (repeat twice))) 10)",
-            "((repeat (repeat (repeat (repeat twice)))) 10)",
+            "(define x 5)",
+            "(+ ((lambda (x) (+ x (* x 10))) 3) x)",
+            "(+ (let ((x 3)) (+ x (* x 10))) x)",
     }{
         t := parse(s)
         fmt.Println(t)
@@ -120,6 +116,9 @@ func newEnv(params ExpOrProc, args []ExpOrProc, outer Env) Env {
 }
 
 func expandMacro(l []ExpOrProc) []ExpOrProc {
+    if !isAtom(l[0]) {
+        return l
+    }
     s := l[0].exp().atom().symbol()
     switch s {
     case "cond":
@@ -151,6 +150,22 @@ func expandMacro(l []ExpOrProc) []ExpOrProc {
             }}}
         }
         return expanded.exp().list()
+    case "let":
+        bindings := l[1].exp().list()
+        body := l[2]
+        vars := make([]ExpOrProc, len(bindings))
+        exps := make([]ExpOrProc, len(bindings))
+        for i, b := range bindings {
+            bl := b.exp().list() // of len 2
+            vars[i] = bl[0]
+            exps[i] = bl[1]
+        }
+        lambda := ExpOrProc{isExp: true, value: Exp{isList: true, value: []ExpOrProc{
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "lambda"}}},
+            ExpOrProc{isExp: true, value: Exp{isList: true, value: vars}},
+            body,
+        }}}
+        return append([]ExpOrProc{lambda}, exps...)
     default:
         return l
     }
@@ -174,9 +189,9 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
         }
         // list
         l := e.list()
+        l = expandMacro(l)
         first := l[0].exp()
         if !first.isList {
-            l = expandMacro(l)
             s := l[0].exp().atom().symbol()
             switch s {
             case "if":

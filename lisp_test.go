@@ -87,6 +87,14 @@ func TestLisp(t *testing.T) {
                           (else 25))) 1 4)`,
             want:  "13",
         },
+        {
+            input: "(define x 5)",
+            want:  "0",
+        },
+        {
+            input: "(+ (let ((x 3)) (+ x (* x 10))) x)",
+            want:  "38",
+        },
     }{
         p := parse(tt.input)
         e := evalEnv(p, env)

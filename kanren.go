@@ -69,6 +69,33 @@ var kanren = []string{
        (lambda (s/c)
          (let ((c (paircdr s/c)))
            ((f (var c)) (cons (car s/c) (+ c 1)))))))`,
+
+    // (define (disj g1 g2) (lambda_g (s/c) (mplus (g1 s/c) (g2 s/c))))
+    "(define disj (lambda (g1 g2) (lambda (s/c) (mplus (g1 s/c) (g2 s/c)))))",
+    // (define (conj g1 g2) (lambda_g (s/c) (bind (g1 s/c) g2)))
+    "(define conj (lambda (g1 g2) (lambda (s/c) (bind (g1 s/c) g2))))",
+
+    // (define (mplus s1 s2)
+    //   (cond
+    //     ((null? s1) s2)
+    //     ((procedure? s1) (lambda_s () (mplus s2 (s1))))
+    //     (else (cons (car s1) (mplus (cdr s1) s2)))))
+    `(define mplus (lambda (s1 s2)
+       (cond
+         ((null? s1) s2)
+         ((procedure? s1) (lambda () (mplus s2 (s1))))
+         (else (cons (car s1) (mplus (cdr s1) s2))))))`,
+
+    // (define (bind s g)
+    //   (cond
+    //     ((null? s) mzero)
+    //     ((procedure? s) (lambda_s () (bind (s) g)))
+    //     (else (mplus (g (car s)) (bind (cdr s) g)))))
+    `(define bind (lambda (s g)
+       (cond
+         ((null? s) mzero)
+         ((procedure? s) (lambda () (bind (s) g)))
+         (else (mplus (g (car s)) (bind (cdr s) g))))))`,
 }
 
 func loadKanren(env Env) {

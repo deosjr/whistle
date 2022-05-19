@@ -158,6 +158,9 @@ func GlobalEnv() Env {
         l := e.list()
         return atomWithValue( len(l) == 0 )
     }},
+    "procedure?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        return atomWithValue( !args[0].isExp )
+    }},
     }, outer: nil}
 }
 
@@ -252,7 +255,6 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
                 conseq := l[2]
                 tested := evalEnv(test, env)
                 if isTruthy(tested) {
-                //if tested.exp().atom().value.(bool) {
                     return evalEnv(conseq, env)
                 }
                 if len(l) == 3 {

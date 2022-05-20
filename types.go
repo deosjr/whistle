@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     "strconv"
+    "strings"
 )
 
 type Symbol = string
@@ -33,27 +34,105 @@ func (a Atom) String() string {
     return strconv.FormatFloat(a.number(), 'f', -1, 64)
 }
 
-type List = []Exp
+type Pair struct {
+    pcar ExpOrProc
+    pcdr ExpOrProc
+}
+
+func newPair(car, cdr ExpOrProc) Pair {
+    return Pair{pcar: car, pcdr: cdr}
+}
+
+func (p Pair) car() ExpOrProc {
+    if p == empty {
+        panic("() is not a pair")
+    }
+    return p.pcar
+}
+
+func (p Pair) cdr() ExpOrProc {
+    if p == empty {
+        panic("() is not a pair")
+    }
+    return p.pcdr
+}
+
+func (p Pair) cadr() ExpOrProc {
+    return p.cdr().exp().pair().car()
+}
+
+func (p Pair) caddr() ExpOrProc {
+    return p.cdr().exp().pair().cdr().exp().pair().car()
+}
+
+func (p Pair) cadddr() ExpOrProc {
+    return p.cdr().exp().pair().cdr().exp().pair().cdr().exp().pair().car()
+}
+
+func (p Pair) cdddr() ExpOrProc {
+    return p.cdr().exp().pair().cdr().exp().pair().cdr()
+}
+
+var empty Pair = Pair{}
+
+func (p Pair) String() string {
+    return "(" + strings.Join(p.recString(), " ") + ")"
+}
+
+func (p Pair) recString() []string {
+    if p == empty {
+        return nil
+    }
+    s := []string{p.pcar.String()}
+    cdr := p.pcdr
+    if cdr.isExp && cdr.exp().isPair {
+        return append(s, cdr.exp().pair().recString()...)
+    }
+    return append(s, ".", cdr.String())
+}
+
+func list2cons(list []ExpOrProc) Pair {
+    if len(list) == 0 {
+        return empty
+    }
+    if len(list) == 1 {
+        return Pair{pcar: list[0], pcdr: ExpOrProc{isExp:true, value: Exp{isPair:true, value:empty}}}
+    }
+    cons := empty
+    for i:=len(list)-1; i>=0; i-- {
+        cons = Pair{pcar: list[i], pcdr: ExpOrProc{isExp:true, value: Exp{isPair:true, value:cons}}}
+    }
+    return cons
+}
+
+func cons2list(p Pair) []ExpOrProc {
+    list := []ExpOrProc{}
+    for p != empty {
+        list = append(list, p.pcar)
+        p = p.pcdr.exp().pair()
+    }
+    return list
+}
 
 type Exp struct {
-    isList bool // atom if false
+    isPair bool // atom if false
     value any
 }
-func (e Exp) list() []ExpOrProc {
-    if e.isList == false {
-        panic("not a list")
+func (e Exp) pair() Pair {
+    if e.isPair == false {
+        panic("not a pair")
     }
-    return e.value.([]ExpOrProc)
+    return e.value.(Pair)
 }
 func (e Exp) atom() Atom {
-    if e.isList {
+    if e.isPair {
         panic("not an atom")
     }
     return e.value.(Atom)
 }
 func (e Exp) String() string {
-    if e.isList {
-        return fmt.Sprintf("%v", e.list())
+    if e.isPair {
+        return e.pair().String()
     }
     return e.atom().String()
 }
@@ -114,7 +193,7 @@ func isAtom(x ExpOrProc) bool {
         return false
     }
     e := x.exp()
-    return !e.isList
+    return !e.isPair
 }
 
 func isTruthy(x ExpOrProc) bool {

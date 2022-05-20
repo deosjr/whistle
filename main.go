@@ -13,8 +13,12 @@ func main() {
     env := GlobalEnv()
     loadKanren(env)
     for _, s := range []string{
-        "(define empty-state (quote (() 0)))",
+        "(define empty-state (cons (quote ()) 0))",
         "((call/fresh (lambda (q) (equalo q 5))) empty-state)",
+        "(define fives (lambda (x) (disj (equalo x 5) (lambda (s/c) (lambda () ((fives x) s/c))))))",
+        "(define sixes (lambda (x) (disj (equalo x 6) (lambda (s/c) (lambda () ((sixes x) s/c))))))",
+        "(define fives-and-sixes (call/fresh (lambda (x) (disj (fives x) (sixes x)))))",
+        "(take 4 (fives-and-sixes empty-state))",
     }{
         t := parse(s)
         fmt.Println(t)
@@ -51,7 +55,8 @@ func readFromTokens(tokens []string) (ExpOrProc, []string) {
             tokens = t
             list = append(list, parsed)
         }
-        return ExpOrProc{isExp: true, value: Exp{isList: true, value: list}}, tokens[1:]
+        conslist := list2cons(list)
+        return ExpOrProc{isExp: true, value: Exp{isPair: true, value: conslist}}, tokens[1:]
     case ")":
         panic("unexpected ')'")
     default:
@@ -106,7 +111,7 @@ func GlobalEnv() Env {
             return atomWithValue(false)
         }
         e := x.exp()
-        if e.isList {
+        if e.isPair {
             return atomWithValue(false)
         }
         a := e.atom()
@@ -118,33 +123,16 @@ func GlobalEnv() Env {
             return atomWithValue(false)
         }
         e := x.exp()
-        if !e.isList {
-            return atomWithValue(false)
-        }
-        l := e.list()
-        return atomWithValue( len(l) == 2 )
+        return atomWithValue( e.isPair && e.pair() != empty )
     }},
     "car": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-        return args[0].exp().list()[0]
+        return args[0].exp().pair().car()
     }},
     "cdr": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-        l := args[0].exp().list()
-        // TODO: cdr on a pair returns value, not list
-        return ExpOrProc{isExp: true, value: Exp{isList:true, value: l[1:]}}
-    }},
-    // TODO: remove
-    "paircdr": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-        l := args[0].exp().list()
-        return l[1]
+        return args[0].exp().pair().cdr()
     }},
     "cons": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-        var value []ExpOrProc
-        if args[1].isExp && args[1].exp().isList {
-            value = append([]ExpOrProc{args[0]}, args[1].exp().list()...)
-        } else {
-            value = []ExpOrProc{args[0], args[1]}
-        }
-        return ExpOrProc{isExp: true, value: Exp{isList:true, value: value}}
+        return ExpOrProc{isExp: true, value: Exp{isPair:true, value: newPair(args[0], args[1])}}
     }},
     "null?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         x := args[0]
@@ -152,11 +140,10 @@ func GlobalEnv() Env {
             return atomWithValue(false)
         }
         e := x.exp()
-        if !e.isList {
+        if !e.isPair {
             return atomWithValue(false)
         }
-        l := e.list()
-        return atomWithValue( len(l) == 0 )
+        return atomWithValue( e.pair() == empty )
     }},
     "procedure?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
         return atomWithValue( !args[0].isExp )
@@ -164,26 +151,29 @@ func GlobalEnv() Env {
     }, outer: nil}
 }
 
-func newEnv(params ExpOrProc, args []ExpOrProc, outer Env) Env {
+func newEnv(params Pair, args []ExpOrProc, outer Env) Env {
     m := map[Symbol]ExpOrProc{}
-    for i, p := range params.exp().list() {
-        m[p.exp().atom().symbol()] = args[i]
+    i := 0
+    for params != empty {
+        m[params.car().exp().atom().symbol()] = args[i]
+        params = params.cdr().exp().pair()
+        i++
     }
     return Env{dict: m, outer: &outer}
 }
 
-func expandMacro(l []ExpOrProc) []ExpOrProc {
-    if !isAtom(l[0]) {
-        return l
+func expandMacro(p Pair) Pair {
+    if !isAtom(p.car()) {
+        return p
     }
-    s := l[0].exp().atom().symbol()
+    s := p.car().exp().atom().symbol()
     switch s {
     case "cond":
         expanded := atomWithValue(false)
-        clauses := l[1:]
+        clauses := cons2list(p.cdr().exp().pair())
         for i := len(clauses)-1; i>=0; i-- {
-            clause := clauses[i].exp().list()
-            cond := clause[0]
+            clause := clauses[i].exp().pair()
+            cond := clause.car()
             if isAtom(cond) {
                 if cond.exp().atom().symbol() != "else" {
                     panic("expected else")
@@ -191,39 +181,41 @@ func expandMacro(l []ExpOrProc) []ExpOrProc {
                 if i != len(clauses)-1 {
                     panic("else is not last in cond")
                 }
-                expanded = clause[1]
+                expanded = clause.cadr()
                 continue
             }
             begin := []ExpOrProc{ {isExp: true, value: Exp{value: Atom{isSymbol: true, value: "begin"}}} }
-            for _, c := range clause[1:] {
-                begin = append(begin, c)
+            clause = clause.cdr().exp().pair()
+            for clause != empty {
+                begin = append(begin, clause.car())
+                clause = clause.cdr().exp().pair()
             }
-            expanded = ExpOrProc{isExp: true, value: Exp{isList: true, value: []ExpOrProc{
+            expanded = ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{
                 ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "if"}}},
                 cond,
-                ExpOrProc{isExp: true, value: Exp{isList: true, value: begin }},
+                ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons(begin) }},
                 expanded,
-            }}}
+            })}}
         }
-        return expanded.exp().list()
+        return expanded.exp().pair()
     case "let":
-        bindings := l[1].exp().list()
-        body := l[2]
+        bindings := cons2list(p.cadr().exp().pair())
+        body := p.caddr()
         vars := make([]ExpOrProc, len(bindings))
         exps := make([]ExpOrProc, len(bindings))
         for i, b := range bindings {
-            bl := b.exp().list() // of len 2
-            vars[i] = bl[0]
-            exps[i] = bl[1]
+            bl := b.exp().pair() // list of len 2
+            vars[i] = bl.car()
+            exps[i] = bl.cadr()
         }
-        lambda := ExpOrProc{isExp: true, value: Exp{isList: true, value: []ExpOrProc{
+        lambda := ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{
             ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "lambda"}}},
-            ExpOrProc{isExp: true, value: Exp{isList: true, value: vars}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons(vars)}},
             body,
-        }}}
-        return append([]ExpOrProc{lambda}, exps...)
+        })}}
+        return list2cons(append([]ExpOrProc{lambda}, exps...))
     default:
-        return l
+        return p
     }
 }
 
@@ -235,7 +227,7 @@ func eval(e Exp) Exp {
 func evalEnv(x ExpOrProc, env Env) ExpOrProc {
     if x.isExp {
         e := x.exp()
-        if !e.isList {
+        if !e.isPair {
             a := e.atom()
             if a.isSymbol {
                 return env.find(a.symbol()).dict[a.symbol()]
@@ -244,34 +236,34 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
             return x
         }
         // list
-        l := e.list()
-        l = expandMacro(l)
-        first := l[0].exp()
-        if !first.isList {
-            s := l[0].exp().atom().symbol()
+        p := e.pair()
+        p = expandMacro(p)
+        car := p.car()
+        if !car.exp().isPair {
+            s := car.exp().atom().symbol()
             switch s {
             case "if":
-                test := l[1]
-                conseq := l[2]
+                test := p.cadr()
+                conseq := p.caddr()
                 tested := evalEnv(test, env)
                 if isTruthy(tested) {
                     return evalEnv(conseq, env)
                 }
-                if len(l) == 3 {
+                if p.cdddr().exp().pair() == empty {
                     return ExpOrProc{isExp:true, value: Exp{value:Atom{value: false}}}
                 }
-                alt := l[3]
+                alt := p.cadddr()
                 return evalEnv(alt, env)
             case "define":
-                sym := l[1].exp().atom().symbol()
-                exp := l[2]
+                sym := p.cadr().exp().atom().symbol()
+                exp := p.caddr()
                 env.dict[sym] = evalEnv(exp, env)
                 return ExpOrProc{isExp:true, value: Exp{value:Atom{value: false}}}
             case "quote":
-                return l[1]
+                return p.cadr()
             case "lambda":
-                params := l[1]
-                body := l[2]
+                params := p.cadr().exp().pair()
+                body := p.caddr()
                 return ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
                     return evalEnv(body, newEnv(params, args, env))
                 }}
@@ -279,10 +271,12 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
             }
         }
         // procedure call
-        proc := evalEnv(l[0], env).proc()
-        args := make([]ExpOrProc, len(l)-1)
-        for i:=0; i < len(args); i++ {
-            args[i] = evalEnv(l[i+1], env)
+        proc := evalEnv(car, env).proc()
+        args := []ExpOrProc{}
+        cdr := p.cdr().exp().pair()
+        for cdr != empty {
+            args = append(args, evalEnv(cdr.car(), env))
+            cdr = cdr.cdr().exp().pair()
         }
         return proc(args)
     }

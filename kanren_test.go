@@ -12,11 +12,13 @@ func TestKanren(t *testing.T) {
         want string
     }{
         {
-            input: "(define empty-state (quote (() 0)))",
+            // TODO: quote cannot parse pairs that are not lists!
+            //input: "(define empty-state (quote (() 0)))",
+            input: "(define empty-state (cons (quote ()) 0))",
         },
         {
             input: "((call/fresh (lambda (q) (equalo q 5))) empty-state)",
-            want:  "[[[[0 5]] 1]]",
+            want:  "((((0 . 5)) . 1))",
         },
         {
             input: `(define a-and-b
@@ -26,7 +28,20 @@ func TestKanren(t *testing.T) {
         },
         {
             input: "(a-and-b empty-state)",
-            want:  "[[[[1 5] [0 7]] 2] [[[1 6] [0 7]] 2]]",
+            want:  "((((1 . 5) (0 . 7)) . 2) (((1 . 6) (0 . 7)) . 2))",
+        },
+        {
+            input: "(define fives (lambda (x) (disj (equalo x 5) (lambda (s/c) (lambda () ((fives x) s/c))))))",
+        },
+        {
+            input: "(define sixes (lambda (x) (disj (equalo x 6) (lambda (s/c) (lambda () ((sixes x) s/c))))))",
+        },
+        {
+            input: "(define fives-and-sixes (call/fresh (lambda (x) (disj (fives x) (sixes x)))))",
+        },
+        {
+            input: "(take 4 (fives-and-sixes empty-state))",
+            want:  "((((0 . 5)) . 1) (((0 . 6)) . 1) (((0 . 5)) . 1) (((0 . 6)) . 1))",
         },
     }{
         p := parse(tt.input)

@@ -40,7 +40,7 @@ func TestLisp(t *testing.T) {
         },
         {
             input: "(cdr (quote (1 2 3)))",
-            want:  "[2 3]",
+            want:  "(2 3)",
         },
         {
             input: `(define fact 
@@ -91,14 +91,6 @@ func TestLisp(t *testing.T) {
             want:  "38",
         },
         {
-            input: "(cons 1 5)",
-            want:  "[1 5]",
-        },
-        {
-            input: "(cons 1 (quote (2 3)))",
-            want:  "[1 2 3]",
-        },
-        {
             input: `(define find (lambda (proc list) 
             (let ((x (car list)))
             (cond
@@ -109,6 +101,18 @@ func TestLisp(t *testing.T) {
         {
             input: "(find (lambda (x) (= x 2)) (quote (1 2)))",
             want:  "2",
+        },
+        {
+            input: "(cons 1 (quote (2 3)))",
+            want:  "(1 2 3)",
+        },
+        {
+            input: "(cons 1 2)",
+            want:  "(1 . 2)",
+        },
+        {
+            input: "(cons 1 (cons 1 2))",
+            want:  "(1 1 . 2)",
         },
     }{
         p := parse(tt.input)

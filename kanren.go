@@ -70,6 +70,11 @@ var kanren = []string{
            (cond
              ((null? s) (quote ()))
              (else (cons (car s) (take (- n 1) (cdr s)))))))))`,
+
+    // these are macros, but I don't have proper macro support yet
+    // currently hardcoded in the macro lookup map
+    //`(define zzz (lambda (g)
+     //  (lambda (s/c) (lambda () (g s/c)))))`,
 }
 
 func loadKanren(env Env) {

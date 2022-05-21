@@ -15,8 +15,8 @@ func main() {
     for _, s := range []string{
         "(define empty-state (cons (quote ()) 0))",
         "((call/fresh (lambda (q) (equalo q 5))) empty-state)",
-        "(define fives (lambda (x) (disj (equalo x 5) (lambda (s/c) (lambda () ((fives x) s/c))))))",
-        "(define sixes (lambda (x) (disj (equalo x 6) (lambda (s/c) (lambda () ((sixes x) s/c))))))",
+        "(define fives (lambda (x) (disj (equalo x 5) (zzz (fives x)))))",
+        "(define sixes (lambda (x) (disj (equalo x 6) (zzz (sixes x)))))",
         "(define fives-and-sixes (call/fresh (lambda (x) (disj (fives x) (sixes x)))))",
         "(take 4 (fives-and-sixes empty-state))",
     }{
@@ -214,6 +214,19 @@ func expandMacro(p Pair) Pair {
             body,
         })}}
         return list2cons(append([]ExpOrProc{lambda}, exps...))
+    case "zzz":
+        goal := p.cadr()
+        sc := ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "s/c"}}}
+        lambda := ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "lambda"}}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: empty}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{goal, sc})}},
+        })}}
+        return list2cons([]ExpOrProc{
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "lambda"}}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{sc})}},
+            lambda,
+        })
     default:
         return p
     }

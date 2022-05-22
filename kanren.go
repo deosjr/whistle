@@ -73,8 +73,10 @@ var kanren = []string{
 
     // these are macros, but I don't have proper macro support yet
     // currently hardcoded in the macro lookup map
+    // notably, defining these like lambdas leads to infinite loops
     //`(define zzz (lambda (g)
-     //  (lambda (s/c) (lambda () (g s/c)))))`,
+    //  (lambda (s/c) (lambda () (g s/c)))))`,
+    // same for conj+, disj+, conde, fresh
 }
 
 func loadKanren(env Env) {

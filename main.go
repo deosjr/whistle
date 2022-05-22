@@ -15,9 +15,9 @@ func main() {
     for _, s := range []string{
         "(define empty-state (cons (quote ()) 0))",
         "((call/fresh (lambda (q) (equalo q 5))) empty-state)",
-        "(define fives (lambda (x) (disj (equalo x 5) (zzz (fives x)))))",
-        "(define sixes (lambda (x) (disj (equalo x 6) (zzz (sixes x)))))",
-        "(define fives-and-sixes (call/fresh (lambda (x) (disj (fives x) (sixes x)))))",
+        "(define fives (lambda (x) (disj+ (equalo x 5) (zzz (fives x)))))",
+        "(define sixes (lambda (x) (disj+ (equalo x 6) (zzz (sixes x)))))",
+        "(define fives-and-sixes (fresh (x) (disj+ (fives x) (sixes x))))",
         "(take 4 (fives-and-sixes empty-state))",
     }{
         t := parse(s)
@@ -36,6 +36,8 @@ func parse(program string) ExpOrProc {
 }
 
 func tokenize(s string) []string {
+    s = strings.ReplaceAll(s, "[", "(")
+    s = strings.ReplaceAll(s, "]", ")")
     s = strings.ReplaceAll(s, "(", " ( ")
     s = strings.ReplaceAll(s, ")", " ) ")
     return strings.Fields(s)
@@ -197,7 +199,7 @@ func expandMacro(p Pair) Pair {
                 expanded,
             })}}
         }
-        return expanded.exp().pair()
+        return expandMacro(expanded.exp().pair())
     case "let":
         bindings := cons2list(p.cadr().exp().pair())
         body := p.caddr()
@@ -213,7 +215,8 @@ func expandMacro(p Pair) Pair {
             ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons(vars)}},
             body,
         })}}
-        return list2cons(append([]ExpOrProc{lambda}, exps...))
+        return expandMacro(list2cons(append([]ExpOrProc{lambda}, exps...)))
+    // kanren macros
     case "zzz":
         goal := p.cadr()
         sc := ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "s/c"}}}
@@ -222,11 +225,76 @@ func expandMacro(p Pair) Pair {
             ExpOrProc{isExp: true, value: Exp{isPair: true, value: empty}},
             ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{goal, sc})}},
         })}}
-        return list2cons([]ExpOrProc{
+        return expandMacro(list2cons([]ExpOrProc{
             ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "lambda"}}},
             ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{sc})}},
             lambda,
-        })
+        }))
+    case "conj+":
+        g0 := list2cons([]ExpOrProc{{isExp:true, value: Exp{value: Atom{isSymbol: true, value: "zzz"}}}, p.cadr()})
+        g := p.cdr().exp().pair().cdr()
+        if g.exp().pair() == empty {
+            return expandMacro(g0)
+        }
+        return expandMacro(list2cons([]ExpOrProc{
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "conj"}}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: g0}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: newPair(
+                ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "conj+"}}},
+                g,
+            )}},
+        }))
+    case "disj+":
+        g0 := list2cons([]ExpOrProc{{isExp:true, value: Exp{value: Atom{isSymbol: true, value: "zzz"}}}, p.cadr()})
+        g := p.cdr().exp().pair().cdr()
+        if g.exp().pair() == empty {
+            return expandMacro(g0)
+        }
+        return expandMacro(list2cons([]ExpOrProc{
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "disj"}}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: g0}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: newPair(
+                ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "disj+"}}},
+                g,
+            )}},
+        }))
+    case "conde":
+        clauses := p.cdr().exp().pair()
+        list := []ExpOrProc{ {isExp: true, value: Exp{value: Atom{isSymbol: true, value: "disj+"}}} }
+        for clauses != empty {
+            clauses.car().exp().pair() //require
+            list = append(list, ExpOrProc{isExp: true, value: Exp{isPair: true, value: newPair(
+                ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "conj+"}}},
+                clauses.car(),
+            )}})
+            clauses = clauses.cdr().exp().pair()
+        }
+        return expandMacro(list2cons(list))
+    case "fresh":
+        vars := p.cadr().exp().pair()
+        goals := p.cdr().exp().pair().cdr()
+        if vars == empty {
+            return expandMacro(newPair(
+                ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "conj+"}}},
+                goals,
+            ))
+        }
+        x0, xlist := vars.car(), vars.cdr()
+        freshrec := ExpOrProc{isExp: true, value: Exp{isPair: true, value: newPair(
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "fresh"}}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: newPair(
+                xlist,
+                goals,
+            )}})}}
+        lambda := ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "lambda"}}},
+            ExpOrProc{isExp: true, value: Exp{isPair: true, value: list2cons([]ExpOrProc{x0})}},
+            freshrec,
+        })}}
+        return expandMacro(list2cons([]ExpOrProc{
+            ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: "call/fresh"}}},
+            lambda,
+        }))
     default:
         return p
     }

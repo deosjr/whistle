@@ -3,10 +3,10 @@ package main
 // http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
 
 var kanren = []string{
-	// instead of using vector, we just use numbers for vars
-	"(define var (lambda (c) c))",
-	"(define var? (lambda (x) (number? x)))",
-	"(define var=? (lambda (x y) (= x y)))",
+	// instead of using vector, we just use ('var x) pairs for vars
+	"(define var (lambda (c) (cons (quote var) c)))",
+	"(define var? (lambda (x) (and (pair? x) (eqv? (car x) (quote var)))))",
+	"(define var=? (lambda (x y) (= (cdr x) (cdr y))))",
 
 	// walk needs assp, but only cares about true/false
 	`(define assp (lambda (proc list) 
@@ -24,7 +24,7 @@ var kanren = []string{
 	`(define equalo (lambda (u v)
        (lambda (s/c)
          (let ((s (unify u v (car s/c))))
-           (if s (unit (cons s (cdr s/c))) mzero)))))`,
+           (if s (unit (cons s (cdr s/c))) mzero))))))`,
 
 	"(define unit (lambda (s/c) (cons s/c mzero)))",
 	"(define mzero (quote ()))",
@@ -77,6 +77,35 @@ var kanren = []string{
 	//`(define zzz (lambda (g)
 	//  (lambda (s/c) (lambda () (g s/c)))))`,
 	// same for conj+, disj+, conde, fresh
+
+    // length and map are needed in reify
+    "(define length (lambda (x) (if (null? x) 0 (+ 1 (length (cdr x))))))",
+    "(define map (lambda (f x) (if (null? x) x (cons (f (car x)) (map f (cdr x))))))",
+
+    "(define mK-reify (lambda (s/c*) (map reify-state/1st-var s/c*)))",
+    `(define reify-state/1st-var (lambda (s/c)
+       (let ((v (walk* (var 0) (car s/c))))
+         (walk* v (reify-s v (quote ()))))))`,
+    // NOTE: leaving out reify-name, since I don't have strings
+    `(define reify-s (lambda (v s)
+       (let ((v (walk v s)))
+         (cond
+           [(var? v) (cons (cons v (length s)) s)]
+           [(pair? v) (reify-s (cdr v) (reify-s (car v) s))]
+           [else s]))))`,
+    `(define walk* (lambda (v s)
+       (let ((v (walk v s)))
+         (cond
+           [(var? v) v]
+           [(pair? v) (cons (walk* (car v) s) (walk* (cdr v) s))]
+           [else v]))))`,
+
+	// TODO: quote cannot parse pairs that are not lists!
+	"(define empty-state (cons (quote ()) 0))",
+    "(define call/empty-state (lambda (g) (g empty-state)))",
+    // these are also macros in the paper but are already convenient as functions
+    "(define run (lambda (n g) (mK-reify (take n (call/empty-state g)))))",
+    "(define run* (lambda (g) (mK-reify (take-all (call/empty-state g)))))",
 }
 
 func loadKanren(env Env) {

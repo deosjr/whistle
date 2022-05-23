@@ -29,7 +29,7 @@ func (a Atom) String() string {
 	if a.isSymbol {
 		return a.symbol()
 	}
-	if b, ok := a.value.(bool); ok && !b {
+	if _, ok := a.value.(bool); ok {
 		return ""
 	}
 	return strconv.FormatFloat(a.number(), 'f', -1, 64)

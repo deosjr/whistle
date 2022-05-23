@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"math"
+    "reflect"
 	"strconv"
 	"strings"
 )
@@ -13,18 +14,33 @@ func main() {
 	env := GlobalEnv()
 	loadKanren(env)
 	for _, s := range []string{
-		"(define empty-state (cons (quote ()) 0))",
-		"((call/fresh (lambda (q) (equalo q 5))) empty-state)",
-		"(define fives (lambda (x) (disj+ (equalo x 5) (zzz (fives x)))))",
-		"(define sixes (lambda (x) (disj+ (equalo x 6) (zzz (sixes x)))))",
-		"(define fives-and-sixes (fresh (x) (disj+ (fives x) (sixes x))))",
-		"(take 4 (fives-and-sixes empty-state))",
+        "(define conso (lambda (a d p) (equalo p (cons a d))))",
+		"(take-all ((fresh (q) (conso q (quote (2 3)) (quote (1 2 3)))) empty-state))",
+		"(take-all ((fresh (q) (conso q (quote (2 3)) (quote (4 2 3)))) empty-state))",
+		"(take-all ((fresh (q) (conso (quote (1 2)) q (quote (1 2 3)))) empty-state))",
+		"(take-all ((fresh (q) (conso (quote (1)) q (quote (1 2 3)))) empty-state))",
+		"(take-all ((fresh (a b) (conso a b (quote (1 2 3)))) empty-state))", // conso is not appendo!
+        `(define appendo (lambda (l r o)
+            (conde
+                [(equalo l (quote ())) (equalo r o)]
+                [(fresh (a d res)
+                   (conso a d l) 
+                   (conso a res o)
+                   (appendo d r res)
+                    )])))`,
+		"(take-all ((fresh (q) (appendo q (quote (1)) (quote (1)))) empty-state))",
+		"(take-all ((fresh (q) (appendo q (quote (2)) (quote (1 2)))) empty-state))",
+		"(take-all ((fresh (q) (appendo q (quote (2 3)) (quote (1 2 3)))) empty-state))",
+		"(run* (fresh (p q) (appendo p q (quote (1 2 3)))))",
+        "(length (quote (1 2 3)))",
+        "(map (lambda (x) (+ 2 x)) (quote (1 2 3)))",
 	} {
 		t := parse(s)
 		fmt.Println(t)
 		e := evalEnv(t, env)
-		if e.String() != "" {
-			fmt.Println(e)
+        s := e.String()
+		if s != "" {
+			fmt.Println(s)
 		}
 	}
 }
@@ -95,16 +111,6 @@ func GlobalEnv() Env {
 		}},
 		"#t": atomWithValue(true),
 		"#f": atomWithValue(false),
-		"and": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-			and := true
-			for _, a := range args {
-				and = and && boolean(a)
-				if !and {
-					break
-				}
-			}
-			return atomWithValue(and)
-		}},
 		"pi":    atomWithValue(math.Pi),
 		"begin": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc { return args[len(args)-1] }},
 		"number?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
@@ -150,6 +156,13 @@ func GlobalEnv() Env {
 		"procedure?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(!args[0].isExp)
 		}},
+        "eqv?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+            return atomWithValue(reflect.DeepEqual(args[0], args[1]))
+        }},
+		"display": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+            fmt.Println(args[0])
+			return atomWithValue(true)
+		}},
 	}, outer: nil}
 }
 
@@ -164,9 +177,9 @@ func newEnv(params Pair, args []ExpOrProc, outer Env) Env {
 	return Env{dict: m, outer: &outer}
 }
 
-func expandMacro(p Pair) Pair {
+func expandMacro(p Pair) ExpOrProc {
 	if !isAtom(p.car()) {
-		return p
+		return pairExpression(p)
 	}
 	s := p.car().exp().atom().symbol()
 	switch s {
@@ -216,6 +229,20 @@ func expandMacro(p Pair) Pair {
 			body,
 		))
 		return expandMacro(newPair(lambda, pairExpression(list2cons(exps...))))
+    case "and":
+		clauses := p.cdr().exp().pair()
+		if clauses == empty {
+            return newSymbol("#t")
+		}
+        if clauses.cdr().exp().pair() == empty {
+            return clauses.car()
+        }
+		return expandMacro(list2cons(
+			newSymbol("if"),
+            clauses.car(),
+            pairExpression(newPair(newSymbol("and"), clauses.cdr())),
+            newSymbol("#f"),
+		))
 	// kanren macros
 	case "zzz":
 		goal := p.cadr()
@@ -288,7 +315,7 @@ func expandMacro(p Pair) Pair {
 			lambda,
 		))
 	default:
-		return p
+		return pairExpression(p)
 	}
 }
 
@@ -300,6 +327,9 @@ func eval(e Exp) Exp {
 func evalEnv(x ExpOrProc, env Env) ExpOrProc {
 	if x.isExp {
 		e := x.exp()
+        if e.isPair {
+		    e = expandMacro(e.pair()).exp()
+        }
 		if !e.isPair {
 			a := e.atom()
 			if a.isSymbol {
@@ -310,7 +340,6 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
 		}
 		// list
 		p := e.pair()
-		p = expandMacro(p)
 		car := p.car()
 		if !car.exp().isPair {
 			s := car.exp().atom().symbol()

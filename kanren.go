@@ -78,22 +78,22 @@ var kanren = []string{
 	//  (lambda (s/c) (lambda () (g s/c)))))`,
 	// same for conj+, disj+, conde, fresh
 
-    // length and map are needed in reify
-    "(define length (lambda (x) (if (null? x) 0 (+ 1 (length (cdr x))))))",
-    "(define map (lambda (f x) (if (null? x) x (cons (f (car x)) (map f (cdr x))))))",
+	// length and map are needed in reify
+	"(define length (lambda (x) (if (null? x) 0 (+ 1 (length (cdr x))))))",
+	"(define map (lambda (f x) (if (null? x) x (cons (f (car x)) (map f (cdr x))))))",
 
-    "(define mK-reify (lambda (s/c*) (map reify-state/1st-var s/c*)))",
-    `(define reify-state/1st-var (lambda (s/c)
+	"(define mK-reify (lambda (s/c*) (map reify-state/1st-var s/c*)))",
+	`(define reify-state/1st-var (lambda (s/c)
        (let ((v (walk* (var 0) (car s/c))))
          (walk* v (reify-s v (quote ()))))))`,
-    // NOTE: leaving out reify-name, since I don't have strings
-    `(define reify-s (lambda (v s)
+	// NOTE: leaving out reify-name, since I don't have strings
+	`(define reify-s (lambda (v s)
        (let ((v (walk v s)))
          (cond
            [(var? v) (cons (cons v (length s)) s)]
            [(pair? v) (reify-s (cdr v) (reify-s (car v) s))]
            [else s]))))`,
-    `(define walk* (lambda (v s)
+	`(define walk* (lambda (v s)
        (let ((v (walk v s)))
          (cond
            [(var? v) v]
@@ -102,10 +102,10 @@ var kanren = []string{
 
 	// TODO: quote cannot parse pairs that are not lists!
 	"(define empty-state (cons (quote ()) 0))",
-    "(define call/empty-state (lambda (g) (g empty-state)))",
-    // these are also macros in the paper but are already convenient as functions
-    "(define run (lambda (n g) (mK-reify (take n (call/empty-state g)))))",
-    "(define run* (lambda (g) (mK-reify (take-all (call/empty-state g)))))",
+	"(define call/empty-state (lambda (g) (g empty-state)))",
+	// these are also macros in the paper but are already convenient as functions
+	"(define run (lambda (n g) (mK-reify (take n (call/empty-state g)))))",
+	"(define run* (lambda (g) (mK-reify (take-all (call/empty-state g)))))",
 }
 
 func loadKanren(env Env) {

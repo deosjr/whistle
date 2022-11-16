@@ -97,11 +97,11 @@ func list2cons(list ...ExpOrProc) Pair {
 		return empty
 	}
 	if len(list) == 1 {
-		return Pair{pcar: list[0], pcdr: ExpOrProc{isExp: true, value: Exp{isPair: true, value: empty}}}
+		return Pair{pcar: list[0], pcdr: pairExpression(empty)}
 	}
 	cons := empty
 	for i := len(list) - 1; i >= 0; i-- {
-		cons = Pair{pcar: list[i], pcdr: ExpOrProc{isExp: true, value: Exp{isPair: true, value: cons}}}
+		cons = Pair{pcar: list[i], pcdr: pairExpression(cons)}
 	}
 	return cons
 }
@@ -163,7 +163,31 @@ func (e ExpOrProc) String() string {
 	return "#<proc>"
 }
 
-type Proc = func([]ExpOrProc) ExpOrProc
+type Proc struct {
+	isBuiltin bool // user defined proc if false
+	value     any
+}
+
+func (p Proc) builtin() BuiltinProc {
+	if p.isBuiltin == false {
+		panic("not a builtin proc")
+	}
+	return p.value.(BuiltinProc)
+}
+func (p Proc) defined() DefinedProc {
+	if p.isBuiltin {
+		panic("not a userdefined proc")
+	}
+	return p.value.(DefinedProc)
+}
+
+type DefinedProc struct {
+	params Pair
+	body   ExpOrProc
+	env    Env
+}
+
+type BuiltinProc = func([]ExpOrProc) ExpOrProc
 
 type Env struct {
 	dict  map[Symbol]ExpOrProc
@@ -197,6 +221,13 @@ func newSymbol(s string) ExpOrProc {
 
 func pairExpression(p Pair) ExpOrProc {
 	return ExpOrProc{isExp: true, value: Exp{isPair: true, value: p}}
+}
+
+func builtinFunc(f func(args []ExpOrProc) ExpOrProc) ExpOrProc {
+    return ExpOrProc{isExp: false, value: Proc{
+        isBuiltin: true,
+        value:     f,
+    }}
 }
 
 func isAtom(x ExpOrProc) bool {

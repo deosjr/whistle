@@ -5,40 +5,21 @@ package main
 import (
 	"fmt"
 	"math"
-    "reflect"
+	"reflect"
 	"strconv"
 	"strings"
 )
 
 func main() {
 	env := GlobalEnv()
-	loadKanren(env)
 	for _, s := range []string{
-        "(define conso (lambda (a d p) (equalo p (cons a d))))",
-		"(take-all ((fresh (q) (conso q (quote (2 3)) (quote (1 2 3)))) empty-state))",
-		"(take-all ((fresh (q) (conso q (quote (2 3)) (quote (4 2 3)))) empty-state))",
-		"(take-all ((fresh (q) (conso (quote (1 2)) q (quote (1 2 3)))) empty-state))",
-		"(take-all ((fresh (q) (conso (quote (1)) q (quote (1 2 3)))) empty-state))",
-		"(take-all ((fresh (a b) (conso a b (quote (1 2 3)))) empty-state))", // conso is not appendo!
-        `(define appendo (lambda (l r o)
-            (conde
-                [(equalo l (quote ())) (equalo r o)]
-                [(fresh (a d res)
-                   (conso a d l) 
-                   (conso a res o)
-                   (appendo d r res)
-                    )])))`,
-		"(take-all ((fresh (q) (appendo q (quote (1)) (quote (1)))) empty-state))",
-		"(take-all ((fresh (q) (appendo q (quote (2)) (quote (1 2)))) empty-state))",
-		"(take-all ((fresh (q) (appendo q (quote (2 3)) (quote (1 2 3)))) empty-state))",
-		"(run* (fresh (p q) (appendo p q (quote (1 2 3)))))",
-        "(length (quote (1 2 3)))",
-        "(map (lambda (x) (+ 2 x)) (quote (1 2 3)))",
+		"(list 1 2 3)",
+		"(list (list (quote point) 1 2))",
 	} {
 		t := parse(s)
-		fmt.Println(t)
+		fmt.Println("> ", t)
 		e := evalEnv(t, env)
-        s := e.String()
+		s := e.String()
 		if s != "" {
 			fmt.Println(s)
 		}
@@ -91,29 +72,28 @@ func atom(token string) Atom {
 
 func GlobalEnv() Env {
 	return Env{dict: map[Symbol]ExpOrProc{
-		"*": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+		"*": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(number(args[0]) * number(args[1]))
-		}},
-		"+": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+		}),
+		"+": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(number(args[0]) + number(args[1]))
-		}},
-		"-": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+		}),
+		"-": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(number(args[0]) - number(args[1]))
-		}},
-		"=": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+		}),
+		"=": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(number(args[0]) == number(args[1]))
-		}},
-		">": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+		}),
+		">": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(number(args[0]) > number(args[1]))
-		}},
-		"<=": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+		}),
+		"<=": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(number(args[0]) <= number(args[1]))
-		}},
-		"#t": atomWithValue(true),
-		"#f": atomWithValue(false),
+		}),
+		"#t":    atomWithValue(true),
+		"#f":    atomWithValue(false),
 		"pi":    atomWithValue(math.Pi),
-		"begin": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc { return args[len(args)-1] }},
-		"number?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+		"number?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			x := args[0]
 			if !x.isExp {
 				return atomWithValue(false)
@@ -124,25 +104,25 @@ func GlobalEnv() Env {
 			}
 			a := e.atom()
 			return atomWithValue(!a.isSymbol)
-		}},
-		"pair?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        }),
+		"pair?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			x := args[0]
 			if !x.isExp {
 				return atomWithValue(false)
 			}
 			e := x.exp()
 			return atomWithValue(e.isPair && e.pair() != empty)
-		}},
-		"car": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        }),
+		"car": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return args[0].exp().pair().car()
-		}},
-		"cdr": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        }),
+		"cdr": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return args[0].exp().pair().cdr()
-		}},
-		"cons": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        }),
+		"cons": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return pairExpression(newPair(args[0], args[1]))
-		}},
-		"null?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        }),
+		"null?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			x := args[0]
 			if !x.isExp {
 				return atomWithValue(false)
@@ -152,17 +132,17 @@ func GlobalEnv() Env {
 				return atomWithValue(false)
 			}
 			return atomWithValue(e.pair() == empty)
-		}},
-		"procedure?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
+        }),
+		"procedure?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
 			return atomWithValue(!args[0].isExp)
-		}},
-        "eqv?": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-            return atomWithValue(reflect.DeepEqual(args[0], args[1]))
-        }},
-		"display": ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-            fmt.Println(args[0])
+        }),
+		"eqv?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
+			return atomWithValue(reflect.DeepEqual(args[0], args[1]))
+        }),
+		"display": builtinFunc(func(args []ExpOrProc) ExpOrProc {
+			fmt.Println(args[0])
 			return atomWithValue(true)
-		}},
+        }),
 	}, outer: nil}
 }
 
@@ -177,6 +157,8 @@ func newEnv(params Pair, args []ExpOrProc, outer Env) Env {
 	return Env{dict: m, outer: &outer}
 }
 
+// TODO: obviously its not macros rn, its just hardcoded language features
+// They cannot be defined from repl yet!
 func expandMacro(p Pair) ExpOrProc {
 	if !isAtom(p.car()) {
 		return pairExpression(p)
@@ -229,19 +211,29 @@ func expandMacro(p Pair) ExpOrProc {
 			body,
 		))
 		return expandMacro(newPair(lambda, pairExpression(list2cons(exps...))))
-    case "and":
+	case "and":
 		clauses := p.cdr().exp().pair()
 		if clauses == empty {
-            return newSymbol("#t")
+			return newSymbol("#t")
 		}
-        if clauses.cdr().exp().pair() == empty {
-            return clauses.car()
-        }
+		if clauses.cdr().exp().pair() == empty {
+			return clauses.car()
+		}
 		return expandMacro(list2cons(
 			newSymbol("if"),
-            clauses.car(),
-            pairExpression(newPair(newSymbol("and"), clauses.cdr())),
-            newSymbol("#f"),
+			clauses.car(),
+			pairExpression(newPair(newSymbol("and"), clauses.cdr())),
+			newSymbol("#f"),
+		))
+	case "list":
+		clauses := p.cdr().exp().pair()
+		if clauses == empty {
+			return pairExpression(list2cons(newSymbol("quote"), pairExpression(empty)))
+		}
+		return pairExpression(list2cons(
+			newSymbol("cons"),
+			clauses.car(),
+			pairExpression(newPair(newSymbol("list"), clauses.cdr())),
 		))
 	// kanren macros
 	case "zzz":
@@ -325,11 +317,16 @@ func eval(e Exp) Exp {
 }
 
 func evalEnv(x ExpOrProc, env Env) ExpOrProc {
-	if x.isExp {
+	if !x.isExp {
+		// x is a proc, evaluate returns itself
+		return x
+	}
+Loop:
+	for {
 		e := x.exp()
-        if e.isPair {
-		    e = expandMacro(e.pair()).exp()
-        }
+		if e.isPair {
+			e = expandMacro(e.pair()).exp()
+		}
 		if !e.isPair {
 			a := e.atom()
 			if a.isSymbol {
@@ -349,13 +346,24 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
 				conseq := p.caddr()
 				tested := evalEnv(test, env)
 				if isTruthy(tested) {
-					return evalEnv(conseq, env)
+                    x = conseq
+                    continue Loop
 				}
 				if p.cdddr().exp().pair() == empty {
-					return atomWithValue(false)
+                    x = atomWithValue(false)
+                    continue Loop
 				}
 				alt := p.cadddr()
-				return evalEnv(alt, env)
+                x = alt
+                continue Loop
+            case "begin":
+		        args := p.cdr().exp().pair()
+		        for args.cdr().exp().pair() != empty {
+			        evalEnv(args.car(), env)
+			        args = args.cdr().exp().pair()
+		        }
+                x = args.car()
+                continue Loop
 			case "define":
 				sym := p.cadr().exp().atom().symbol()
 				exp := p.caddr()
@@ -366,8 +374,12 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
 			case "lambda":
 				params := p.cadr().exp().pair()
 				body := p.caddr()
-				return ExpOrProc{value: func(args []ExpOrProc) ExpOrProc {
-					return evalEnv(body, newEnv(params, args, env))
+				return ExpOrProc{isExp: false, value: Proc{isBuiltin: false,
+					value: DefinedProc{
+						params: params,
+						body:   body,
+						env:    env,
+					},
 				}}
 				// default: falls through to procedure call
 			}
@@ -380,8 +392,11 @@ func evalEnv(x ExpOrProc, env Env) ExpOrProc {
 			args = append(args, evalEnv(cdr.car(), env))
 			cdr = cdr.cdr().exp().pair()
 		}
-		return proc(args)
+		if proc.isBuiltin {
+			return proc.builtin()(args)
+		}
+		defproc := proc.defined()
+		x = defproc.body
+		env = newEnv(defproc.params, args, defproc.env)
 	}
-	// proc
-	return x // TODO
 }

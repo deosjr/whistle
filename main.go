@@ -26,7 +26,7 @@ func main() {
 	}
 }
 
-func parse(program string) ExpOrProc {
+func parse(program string) SExpression {
 	s := tokenize(program)
 	p, _ := readFromTokens(s)
 	return p
@@ -40,7 +40,7 @@ func tokenize(s string) []string {
 	return strings.Fields(s)
 }
 
-func readFromTokens(tokens []string) (ExpOrProc, []string) {
+func readFromTokens(tokens []string) (SExpression, []string) {
 	if len(tokens) == 0 {
 		panic("syntax error")
 	}
@@ -48,110 +48,98 @@ func readFromTokens(tokens []string) (ExpOrProc, []string) {
 	tokens = tokens[1:]
 	switch token {
 	case "(":
-		list := []ExpOrProc{}
+		list := []SExpression{}
 		for tokens[0] != ")" {
 			parsed, t := readFromTokens(tokens)
 			tokens = t
 			list = append(list, parsed)
 		}
-		conslist := list2cons(list...)
-		return ExpOrProc{isExp: true, value: Exp{isPair: true, value: conslist}}, tokens[1:]
+        return list2cons(list...), tokens[1:]
 	case ")":
 		panic("unexpected ')'")
 	default:
-		return ExpOrProc{isExp: true, value: Exp{value: atom(token)}}, tokens
+        return atom(token), tokens
 	}
 }
 
-func atom(token string) Atom {
+func atom(token string) SExpression {
 	if n, err := strconv.ParseFloat(token, 64); err == nil {
-		return Atom{value: n}
+        return NewNumber(n)
 	}
-	return Atom{isSymbol: true, value: token}
+    return NewSymbol(token)
 }
 
 func GlobalEnv() Env {
-	return Env{dict: map[Symbol]ExpOrProc{
-		"*": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return atomWithValue(number(args[0]) * number(args[1]))
+	return Env{dict: map[Symbol]SExpression{
+		"*": builtinFunc(func(args []SExpression) SExpression {
+			return atomWithValue(args[0].AsNumber() * args[1].AsNumber())
 		}),
-		"+": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return atomWithValue(number(args[0]) + number(args[1]))
+		"+": builtinFunc(func(args []SExpression) SExpression {
+			return atomWithValue(args[0].AsNumber() + args[1].AsNumber())
 		}),
-		"-": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return atomWithValue(number(args[0]) - number(args[1]))
+		"-": builtinFunc(func(args []SExpression) SExpression {
+			return atomWithValue(args[0].AsNumber() - args[1].AsNumber())
 		}),
-		"=": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return atomWithValue(number(args[0]) == number(args[1]))
+		"=": builtinFunc(func(args []SExpression) SExpression {
+			return atomWithValue(args[0].AsNumber() == args[1].AsNumber())
 		}),
-		">": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return atomWithValue(number(args[0]) > number(args[1]))
+		">": builtinFunc(func(args []SExpression) SExpression {
+			return atomWithValue(args[0].AsNumber() > args[1].AsNumber())
 		}),
-		"<=": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return atomWithValue(number(args[0]) <= number(args[1]))
+		"<=": builtinFunc(func(args []SExpression) SExpression {
+			return atomWithValue(args[0].AsNumber() <= args[1].AsNumber())
 		}),
 		"#t":    atomWithValue(true),
 		"#f":    atomWithValue(false),
 		"pi":    atomWithValue(math.Pi),
-		"number?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
+		"number?": builtinFunc(func(args []SExpression) SExpression {
+            return atomWithValue(args[0].IsNumber())
+        }),
+		"pair?": builtinFunc(func(args []SExpression) SExpression {
+            x := args[0]
+            if !x.IsPair() {
+                return atomWithValue(false)
+            }
+            return atomWithValue(x.AsPair() != empty)
+        }),
+		"car": builtinFunc(func(args []SExpression) SExpression {
+			return args[0].AsPair().car()
+        }),
+		"cdr": builtinFunc(func(args []SExpression) SExpression {
+			return args[0].AsPair().cdr()
+        }),
+		"cons": builtinFunc(func(args []SExpression) SExpression {
+			return NewPair(args[0], args[1])
+        }),
+		"null?": builtinFunc(func(args []SExpression) SExpression {
 			x := args[0]
-			if !x.isExp {
+			if x.IsProcedure() {
 				return atomWithValue(false)
 			}
-			e := x.exp()
-			if e.isPair {
+			if x.IsAtom() {
 				return atomWithValue(false)
 			}
-			a := e.atom()
-			return atomWithValue(!a.isSymbol)
+			return atomWithValue(x.AsPair() == empty)
         }),
-		"pair?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			x := args[0]
-			if !x.isExp {
-				return atomWithValue(false)
-			}
-			e := x.exp()
-			return atomWithValue(e.isPair && e.pair() != empty)
+		"procedure?": builtinFunc(func(args []SExpression) SExpression {
+			return atomWithValue(args[0].IsProcedure())
         }),
-		"car": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return args[0].exp().pair().car()
-        }),
-		"cdr": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return args[0].exp().pair().cdr()
-        }),
-		"cons": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return pairExpression(newPair(args[0], args[1]))
-        }),
-		"null?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			x := args[0]
-			if !x.isExp {
-				return atomWithValue(false)
-			}
-			e := x.exp()
-			if !e.isPair {
-				return atomWithValue(false)
-			}
-			return atomWithValue(e.pair() == empty)
-        }),
-		"procedure?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
-			return atomWithValue(!args[0].isExp)
-        }),
-		"eqv?": builtinFunc(func(args []ExpOrProc) ExpOrProc {
+		"eqv?": builtinFunc(func(args []SExpression) SExpression {
 			return atomWithValue(reflect.DeepEqual(args[0], args[1]))
         }),
-		"display": builtinFunc(func(args []ExpOrProc) ExpOrProc {
+		"display": builtinFunc(func(args []SExpression) SExpression {
 			fmt.Println(args[0])
 			return atomWithValue(true)
         }),
 	}, outer: nil}
 }
 
-func newEnv(params Pair, args []ExpOrProc, outer Env) Env {
-	m := map[Symbol]ExpOrProc{}
+func newEnv(params Pair, args []SExpression, outer Env) Env {
+	m := map[Symbol]SExpression{}
 	i := 0
 	for params != empty {
-		m[params.car().exp().atom().symbol()] = args[i]
-		params = params.cdr().exp().pair()
+		m[params.car().AsSymbol()] = args[i]
+		params = params.cdr().AsPair()
 		i++
 	}
 	return Env{dict: m, outer: &outer}
@@ -159,20 +147,21 @@ func newEnv(params Pair, args []ExpOrProc, outer Env) Env {
 
 // TODO: obviously its not macros rn, its just hardcoded language features
 // They cannot be defined from repl yet!
-func expandMacro(p Pair) ExpOrProc {
-	if !isAtom(p.car()) {
-		return pairExpression(p)
+func expandMacro(p Pair) SExpression {
+	if !p.car().IsAtom() {
+		return p
 	}
-	s := p.car().exp().atom().symbol()
+	s := p.car().AsSymbol()
 	switch s {
 	case "cond":
-		expanded := atomWithValue(false)
-		clauses := cons2list(p.cdr().exp().pair())
+        var expanded SExpression
+		expanded = atomWithValue(false)
+		clauses := cons2list(p.cdr().AsPair())
 		for i := len(clauses) - 1; i >= 0; i-- {
-			clause := clauses[i].exp().pair()
+			clause := clauses[i].AsPair()
 			cond := clause.car()
-			if isAtom(cond) {
-				if cond.exp().atom().symbol() != "else" {
+			if cond.IsAtom() {
+				if cond.AsSymbol() != "else" {
 					panic("expected else")
 				}
 				if i != len(clauses)-1 {
@@ -181,222 +170,219 @@ func expandMacro(p Pair) ExpOrProc {
 				expanded = clause.cadr()
 				continue
 			}
-			begin := []ExpOrProc{newSymbol("begin")}
-			clause = clause.cdr().exp().pair()
+			begin := []SExpression{NewSymbol("begin")}
+			clause = clause.cdr().AsPair()
 			for clause != empty {
 				begin = append(begin, clause.car())
-				clause = clause.cdr().exp().pair()
+				clause = clause.cdr().AsPair()
 			}
-			expanded = pairExpression(list2cons(
-				newSymbol("if"),
+			expanded = list2cons(
+				NewSymbol("if"),
 				cond,
-				pairExpression(list2cons(begin...)),
+				list2cons(begin...),
 				expanded,
-			))
+			)
 		}
-		return expandMacro(expanded.exp().pair())
+		return expandMacro(expanded.AsPair())
 	case "let":
-		bindings := cons2list(p.cadr().exp().pair())
+		bindings := cons2list(p.cadr().AsPair())
 		body := p.caddr()
-		vars := make([]ExpOrProc, len(bindings))
-		exps := make([]ExpOrProc, len(bindings))
+		vars := make([]SExpression, len(bindings))
+		exps := make([]SExpression, len(bindings))
 		for i, b := range bindings {
-			bl := b.exp().pair() // list of len 2
+			bl := b.AsPair() // list of len 2
 			vars[i] = bl.car()
 			exps[i] = bl.cadr()
 		}
-		lambda := pairExpression(list2cons(
-			newSymbol("lambda"),
-			pairExpression(list2cons(vars...)),
+		lambda := list2cons(
+			NewSymbol("lambda"),
+			list2cons(vars...),
 			body,
-		))
-		return expandMacro(newPair(lambda, pairExpression(list2cons(exps...))))
+		)
+		return expandMacro(NewPair(lambda, list2cons(exps...)))
 	case "and":
-		clauses := p.cdr().exp().pair()
+		clauses := p.cdr().AsPair()
 		if clauses == empty {
-			return newSymbol("#t")
+			return NewSymbol("#t")
 		}
-		if clauses.cdr().exp().pair() == empty {
+		if clauses.cdr().AsPair() == empty {
 			return clauses.car()
 		}
 		return expandMacro(list2cons(
-			newSymbol("if"),
+			NewSymbol("if"),
 			clauses.car(),
-			pairExpression(newPair(newSymbol("and"), clauses.cdr())),
-			newSymbol("#f"),
+			NewPair(NewSymbol("and"), clauses.cdr()),
+			NewSymbol("#f"),
 		))
 	case "list":
-		clauses := p.cdr().exp().pair()
+		clauses := p.cdr().AsPair()
 		if clauses == empty {
-			return pairExpression(list2cons(newSymbol("quote"), pairExpression(empty)))
+			return list2cons(NewSymbol("quote"), empty)
 		}
-		return pairExpression(list2cons(
-			newSymbol("cons"),
+		return list2cons(
+			NewSymbol("cons"),
 			clauses.car(),
-			pairExpression(newPair(newSymbol("list"), clauses.cdr())),
-		))
+			NewPair(NewSymbol("list"), clauses.cdr()),
+		)
 	// kanren macros
 	case "zzz":
 		goal := p.cadr()
-		sc := newSymbol("s/c")
-		lambda := pairExpression(list2cons(
-			newSymbol("lambda"),
-			pairExpression(empty),
-			pairExpression(list2cons(goal, sc)),
-		))
+		sc := NewSymbol("s/c")
+		lambda := list2cons(
+			NewSymbol("lambda"),
+            empty,
+			list2cons(goal, sc),
+		)
 		return expandMacro(list2cons(
-			newSymbol("lambda"),
-			pairExpression(list2cons(sc)),
+			NewSymbol("lambda"),
+			list2cons(sc),
 			lambda,
 		))
 	case "conj+":
-		g0 := list2cons(newSymbol("zzz"), p.cadr())
-		g := p.cdr().exp().pair().cdr()
-		if g.exp().pair() == empty {
+		g0 := list2cons(NewSymbol("zzz"), p.cadr())
+		g := p.cddr()
+		if g.AsPair() == empty {
 			return expandMacro(g0)
 		}
 		return expandMacro(list2cons(
-			newSymbol("conj"),
-			pairExpression(g0),
-			pairExpression(newPair(newSymbol("conj+"), g)),
+			NewSymbol("conj"),
+			g0,
+			NewPair(NewSymbol("conj+"), g),
 		))
 	case "disj+":
-		g0 := list2cons(newSymbol("zzz"), p.cadr())
-		g := p.cdr().exp().pair().cdr()
-		if g.exp().pair() == empty {
+		g0 := list2cons(NewSymbol("zzz"), p.cadr())
+		g := p.cddr()
+		if g.AsPair() == empty {
 			return expandMacro(g0)
 		}
 		return expandMacro(list2cons(
-			newSymbol("disj"),
-			pairExpression(g0),
-			pairExpression(newPair(newSymbol("disj+"), g)),
+			NewSymbol("disj"),
+			g0,
+			NewPair(NewSymbol("disj+"), g),
 		))
 	case "conde":
-		clauses := p.cdr().exp().pair()
-		list := []ExpOrProc{newSymbol("disj+")}
+		clauses := p.cdr().AsPair()
+		list := []SExpression{NewSymbol("disj+")}
 		for clauses != empty {
-			clauses.car().exp().pair() //require
-			list = append(list, pairExpression(newPair(
-				newSymbol("conj+"),
+			clauses.car().AsPair() //require
+			list = append(list, NewPair(
+				NewSymbol("conj+"),
 				clauses.car(),
-			)))
-			clauses = clauses.cdr().exp().pair()
+			))
+			clauses = clauses.cdr().AsPair()
 		}
 		return expandMacro(list2cons(list...))
 	case "fresh":
-		vars := p.cadr().exp().pair()
-		goals := p.cdr().exp().pair().cdr()
+		vars := p.cadr().AsPair()
+		goals := p.cddr()
 		if vars == empty {
-			return expandMacro(newPair(
-				newSymbol("conj+"),
+			return expandMacro(NewPair(
+				NewSymbol("conj+"),
 				goals,
 			))
 		}
 		x0, xlist := vars.car(), vars.cdr()
-		freshrec := pairExpression(newPair(
-			newSymbol("fresh"),
-			pairExpression(newPair(xlist, goals)),
-		))
-		lambda := pairExpression(list2cons(
-			newSymbol("lambda"),
-			pairExpression(list2cons(x0)),
+		freshrec := NewPair(
+			NewSymbol("fresh"),
+			NewPair(xlist, goals),
+		)
+		lambda := list2cons(
+			NewSymbol("lambda"),
+			list2cons(x0),
 			freshrec,
-		))
+		)
 		return expandMacro(list2cons(
-			newSymbol("call/fresh"),
+			NewSymbol("call/fresh"),
 			lambda,
 		))
 	default:
-		return pairExpression(p)
+		return p
 	}
 }
 
-func eval(e Exp) Exp {
-	eop := ExpOrProc{isExp: true, value: e}
-	return evalEnv(eop, GlobalEnv()).exp()
+func eval(e SExpression) SExpression {
+	return evalEnv(e, GlobalEnv())
 }
 
-func evalEnv(x ExpOrProc, env Env) ExpOrProc {
-	if !x.isExp {
-		// x is a proc, evaluate returns itself
-		return x
+func evalEnv(e SExpression, env Env) SExpression {
+	if e.IsProcedure() {
+		// e is a proc, evaluate returns itself
+		return e
 	}
 Loop:
 	for {
-		e := x.exp()
-		if e.isPair {
-			e = expandMacro(e.pair()).exp()
+		if e.IsPair() {
+			e = expandMacro(e.AsPair())
 		}
-		if !e.isPair {
-			a := e.atom()
-			if a.isSymbol {
-				return env.find(a.symbol()).dict[a.symbol()]
+		if e.IsAtom() {
+			if e.IsSymbol() {
+				return env.find(e.AsSymbol()).dict[e.AsSymbol()]
 			}
 			// number
-			return x
+			return e
 		}
 		// list
-		p := e.pair()
+		p := e.AsPair()
 		car := p.car()
-		if !car.exp().isPair {
-			s := car.exp().atom().symbol()
+		if car.IsAtom() {
+			s := car.AsSymbol()
 			switch s {
 			case "if":
 				test := p.cadr()
 				conseq := p.caddr()
 				tested := evalEnv(test, env)
 				if isTruthy(tested) {
-                    x = conseq
+                    e = conseq
                     continue Loop
 				}
-				if p.cdddr().exp().pair() == empty {
-                    x = atomWithValue(false)
+				if p.cdddr().AsPair() == empty {
+                    e = atomWithValue(false)
                     continue Loop
 				}
 				alt := p.cadddr()
-                x = alt
+                e = alt
                 continue Loop
             case "begin":
-		        args := p.cdr().exp().pair()
-		        for args.cdr().exp().pair() != empty {
+		        args := p.cdr().AsPair()
+		        for args.cdr().AsPair() != empty {
 			        evalEnv(args.car(), env)
-			        args = args.cdr().exp().pair()
+			        args = args.cdr().AsPair()
 		        }
-                x = args.car()
+                e = args.car()
                 continue Loop
 			case "define":
-				sym := p.cadr().exp().atom().symbol()
+				sym := p.cadr().AsSymbol()
 				exp := p.caddr()
 				env.dict[sym] = evalEnv(exp, env)
 				return atomWithValue(false)
 			case "quote":
 				return p.cadr()
 			case "lambda":
-				params := p.cadr().exp().pair()
+				params := p.cadr().AsPair()
 				body := p.caddr()
-				return ExpOrProc{isExp: false, value: Proc{isBuiltin: false,
-					value: DefinedProc{
-						params: params,
-						body:   body,
-						env:    env,
-					},
-				}}
+                return Proc{sexpression:sexpression{
+                    value: DefinedProc{
+                        params: params,
+                        body: body,
+                        env: env,
+                    },
+                }}
 				// default: falls through to procedure call
 			}
 		}
 		// procedure call
-		proc := evalEnv(car, env).proc()
-		args := []ExpOrProc{}
-		cdr := p.cdr().exp().pair()
+		proc := evalEnv(car, env).AsProcedure()
+		args := []SExpression{}
+		cdr := p.cdr().AsPair()
 		for cdr != empty {
 			args = append(args, evalEnv(cdr.car(), env))
-			cdr = cdr.cdr().exp().pair()
+			cdr = cdr.cdr().AsPair()
 		}
 		if proc.isBuiltin {
 			return proc.builtin()(args)
 		}
 		defproc := proc.defined()
-		x = defproc.body
+		e = defproc.body
 		env = newEnv(defproc.params, args, defproc.env)
 	}
 }

@@ -11,6 +11,10 @@ func TestKanren(t *testing.T) {
 		input string
 		want  string
 	}{
+        {
+            input: "empty-state",
+            want:  "(() . 0)",
+        },
 		{
 			input: "((call/fresh (lambda (q) (equalo q 5))) empty-state)",
 			want:  "(((((var . 0) . 5)) . 1))",

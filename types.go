@@ -6,75 +6,180 @@ import (
 	"strings"
 )
 
-type Symbol = string
-type Number = float64
-type Atom struct {
-	isSymbol bool // number if false
-	value    any
+// sexpression bool flags
+// isExpression isAtom    isSymbol
+// else Proc    else Pair else Number
+// if Proc      isBuiltin
+//              else user defined procedure
+
+type SExpression interface {
+    IsSymbol() bool
+    IsNumber() bool
+    IsAtom() bool
+    IsPair() bool
+    IsExpression() bool
+    IsProcedure() bool
+    AsSymbol() Symbol
+    AsNumber() Number
+    AsAtom() Atom
+    AsPair() Pair
+    AsProcedure() Proc//edure
+    String() string
 }
 
-func (a Atom) symbol() string {
-	if a.isSymbol == false {
-		panic("not a symbol")
-	}
-	return a.value.(string)
+type sexpression struct {
+    isExpression bool
+    isAtom bool
+    isSymbol bool
+    value any
 }
-func (a Atom) number() float64 {
-	if a.isSymbol {
-		panic("not a number")
-	}
-	return a.value.(float64)
+
+func (s sexpression) IsSymbol() bool {
+    return s.isExpression && s.isAtom && s.isSymbol
 }
+
+func (s sexpression) IsNumber() bool {
+    return s.isExpression && s.isAtom && !s.isSymbol
+}
+
+func (s sexpression) IsAtom() bool {
+    return s.isExpression && s.isAtom
+}
+
+func (s sexpression) IsPair() bool {
+    return s.isExpression && !s.isAtom
+}
+
+func (s sexpression) IsExpression() bool {
+    return s.isExpression
+}
+
+func (s sexpression) IsProcedure() bool {
+    return !s.isExpression
+}
+
+func (s sexpression) AsSymbol() Symbol {
+    if !s.IsSymbol() {
+        panic("not a symbol")
+    }
+    return s.value.(Symbol)
+}
+
+func (s sexpression) AsNumber() Number {
+    if !s.IsNumber() {
+        panic("not a number")
+    }
+    return s.value.(Number)
+}
+
+func (s sexpression) AsAtom() Atom {
+    panic("not an atom")
+}
+
+func (s sexpression) AsPair() Pair {
+    panic("not a pair")
+}
+
+func (s sexpression) AsProcedure() Proc {
+    panic("not a procedure")
+}
+
+type Symbol = string
+
+func NewSymbol(s string) Atom {
+    a := NewAtom(s)
+    a.isSymbol = true
+    return a
+}
+
+type Number = float64
+
+func NewNumber(v any) Atom {
+    return NewAtom(v)
+}
+
+type Atom struct {
+    sexpression
+}
+
+func NewAtom(v any) Atom {
+    return Atom{sexpression{
+        isExpression: true,
+        isAtom: true,
+        value: v,
+    }}
+}
+
+func (a Atom) AsAtom() Atom {
+    return a
+}
+
 func (a Atom) String() string {
-	if a.isSymbol {
-		return a.symbol()
+	if a.IsSymbol() {
+		return a.AsSymbol()
 	}
+    // TODO: hacked bool type into Number type here!
 	if _, ok := a.value.(bool); ok {
 		return ""
 	}
-	return strconv.FormatFloat(a.number(), 'f', -1, 64)
+	return strconv.FormatFloat(a.AsNumber(), 'f', -1, 64)
 }
 
 type Pair struct {
-	pcar ExpOrProc
-	pcdr ExpOrProc
+    sexpression
+    pcar SExpression
+    pcdr SExpression
 }
 
-func newPair(car, cdr ExpOrProc) Pair {
-	return Pair{pcar: car, pcdr: cdr}
+func NewPair(car, cdr SExpression) Pair {
+    return Pair{
+        sexpression: sexpression{
+            isExpression: true,
+        },
+        pcar: car,
+        pcdr: cdr,
+    }
 }
 
-func (p Pair) car() ExpOrProc {
+func (p Pair) AsPair() Pair {
+    return p
+}
+
+func (p Pair) car() SExpression {
 	if p == empty {
 		panic("() is not a pair")
 	}
 	return p.pcar
 }
 
-func (p Pair) cdr() ExpOrProc {
+func (p Pair) cdr() SExpression {
 	if p == empty {
 		panic("() is not a pair")
 	}
 	return p.pcdr
 }
 
-func (p Pair) cadr() ExpOrProc {
-	return p.cdr().exp().pair().car()
+func (p Pair) cadr() SExpression {
+	return p.cdr().AsPair().car()
 }
 
-func (p Pair) caddr() ExpOrProc {
-	return p.cdr().exp().pair().cdr().exp().pair().car()
+func (p Pair) caddr() SExpression {
+	return p.cdr().AsPair().cdr().AsPair().car()
 }
 
-func (p Pair) cadddr() ExpOrProc {
-	return p.cdr().exp().pair().cdr().exp().pair().cdr().exp().pair().car()
+func (p Pair) cadddr() SExpression {
+	return p.cdr().AsPair().cdr().AsPair().cdr().AsPair().car()
 }
 
-func (p Pair) cdddr() ExpOrProc {
-	return p.cdr().exp().pair().cdr().exp().pair().cdr()
+func (p Pair) cddr() SExpression {
+    return p.cdr().AsPair().cdr()
 }
 
-var empty Pair = Pair{}
+func (p Pair) cdddr() SExpression {
+	return p.cdr().AsPair().cdr().AsPair().cdr()
+}
+
+var empty Pair = NewPair(nil, nil)
 
 func (p Pair) String() string {
 	return "(" + strings.Join(p.recString(), " ") + ")"
@@ -86,86 +191,42 @@ func (p Pair) recString() []string {
 	}
 	s := []string{p.pcar.String()}
 	cdr := p.pcdr
-	if cdr.isExp && cdr.exp().isPair {
-		return append(s, cdr.exp().pair().recString()...)
+	if cdr.IsPair() {
+		return append(s, cdr.AsPair().recString()...)
 	}
 	return append(s, ".", cdr.String())
 }
 
-func list2cons(list ...ExpOrProc) Pair {
+func list2cons(list ...SExpression) Pair {
 	if len(list) == 0 {
 		return empty
 	}
 	if len(list) == 1 {
-		return Pair{pcar: list[0], pcdr: pairExpression(empty)}
+		return NewPair(list[0], empty)
 	}
 	cons := empty
 	for i := len(list) - 1; i >= 0; i-- {
-		cons = Pair{pcar: list[i], pcdr: pairExpression(cons)}
+		cons = NewPair(list[i], cons)
 	}
 	return cons
 }
 
-func cons2list(p Pair) []ExpOrProc {
-	list := []ExpOrProc{}
+func cons2list(p Pair) []SExpression {
+	list := []SExpression{}
 	for p != empty {
 		list = append(list, p.pcar)
-		p = p.pcdr.exp().pair()
+		p = p.pcdr.AsPair()
 	}
 	return list
 }
 
-type Exp struct {
-	isPair bool // atom if false
-	value  any
-}
-
-func (e Exp) pair() Pair {
-	if e.isPair == false {
-		panic("not a pair")
-	}
-	return e.value.(Pair)
-}
-func (e Exp) atom() Atom {
-	if e.isPair {
-		panic("not an atom")
-	}
-	return e.value.(Atom)
-}
-func (e Exp) String() string {
-	if e.isPair {
-		return e.pair().String()
-	}
-	return e.atom().String()
-}
-
-type ExpOrProc struct {
-	isExp bool // proc if false
-	value any
-}
-
-func (e ExpOrProc) exp() Exp {
-	if e.isExp == false {
-		panic("not an exp")
-	}
-	return e.value.(Exp)
-}
-func (e ExpOrProc) proc() Proc {
-	if e.isExp {
-		panic("not a proc")
-	}
-	return e.value.(Proc)
-}
-func (e ExpOrProc) String() string {
-	if e.isExp {
-		return e.exp().String()
-	}
-	return "#<proc>"
-}
-
 type Proc struct {
+    sexpression
 	isBuiltin bool // user defined proc if false
-	value     any
+}
+
+func (p Proc) AsProcedure() Proc {
+    return p
 }
 
 func (p Proc) builtin() BuiltinProc {
@@ -181,16 +242,20 @@ func (p Proc) defined() DefinedProc {
 	return p.value.(DefinedProc)
 }
 
+func (p Proc) String() string {
+    return "#<proc>"
+}
+
 type DefinedProc struct {
 	params Pair
-	body   ExpOrProc
+	body   SExpression
 	env    Env
 }
 
-type BuiltinProc = func([]ExpOrProc) ExpOrProc
+type BuiltinProc = func([]SExpression) SExpression
 
 type Env struct {
-	dict  map[Symbol]ExpOrProc
+	dict  map[Symbol]SExpression
 	outer *Env
 }
 
@@ -204,44 +269,27 @@ func (e Env) find(s Symbol) Env {
 	return e.outer.find(s)
 }
 
-func number(e ExpOrProc) float64 {
-	return e.exp().atom().number()
-}
-func boolean(e ExpOrProc) bool {
-	return e.exp().atom().value.(bool)
+func boolean(e SExpression) bool {
+	return e.AsAtom().value.(bool)
 }
 
-func atomWithValue(x any) ExpOrProc {
-	return ExpOrProc{isExp: true, value: Exp{value: Atom{value: x}}}
+func atomWithValue(x any) Atom {
+    //TODO: abused for booleans
+    return NewNumber(x)
 }
 
-func newSymbol(s string) ExpOrProc {
-	return ExpOrProc{isExp: true, value: Exp{value: Atom{isSymbol: true, value: s}}}
-}
-
-func pairExpression(p Pair) ExpOrProc {
-	return ExpOrProc{isExp: true, value: Exp{isPair: true, value: p}}
-}
-
-func builtinFunc(f func(args []ExpOrProc) ExpOrProc) ExpOrProc {
-    return ExpOrProc{isExp: false, value: Proc{
+func builtinFunc(f func(args []SExpression) SExpression) Proc {
+    return Proc{
         isBuiltin: true,
-        value:     f,
-    }}
+        sexpression: sexpression{
+            value: f,
+        },
+    }
 }
 
-func isAtom(x ExpOrProc) bool {
-	if !x.isExp {
-		return false
-	}
-	e := x.exp()
-	return !e.isPair
-}
-
-func isTruthy(x ExpOrProc) bool {
-	if isAtom(x) {
-		a := x.exp().atom()
-		if b, ok := a.value.(bool); ok {
+func isTruthy(x SExpression) bool {
+	if x.IsAtom() {
+		if b, ok := x.AsAtom().value.(bool); ok {
 			return b
 		}
 	}

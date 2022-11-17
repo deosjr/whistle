@@ -8,18 +8,21 @@ import (
 
 // sexpression bool flags
 // isExpression isAtom    isSymbol
-// else Proc    else Pair else Number
+// else Proc    else Pair else Primitive
 // if Proc      isBuiltin
 //              else user defined procedure
+// Primitives escape back to golang types
 
 type SExpression interface {
     IsSymbol() bool
+    IsPrimitive() bool
     IsNumber() bool
     IsAtom() bool
     IsPair() bool
     IsExpression() bool
     IsProcedure() bool
     AsSymbol() Symbol
+    AsPrimitive() any
     AsNumber() Number
     AsAtom() Atom
     AsPair() Pair
@@ -38,8 +41,16 @@ func (s sexpression) IsSymbol() bool {
     return s.isExpression && s.isAtom && s.isSymbol
 }
 
-func (s sexpression) IsNumber() bool {
+func (s sexpression) IsPrimitive() bool {
     return s.isExpression && s.isAtom && !s.isSymbol
+}
+
+func (s sexpression) IsNumber() bool {
+    if !s.IsPrimitive() {
+        return false
+    }
+    _, ok := s.value.(Number)
+    return ok
 }
 
 func (s sexpression) IsAtom() bool {
@@ -63,6 +74,13 @@ func (s sexpression) AsSymbol() Symbol {
         panic("not a symbol")
     }
     return s.value.(Symbol)
+}
+
+func (s sexpression) AsPrimitive() any {
+    if !s.IsPrimitive() {
+        panic("not a primitive")
+    }
+    return s.value
 }
 
 func (s sexpression) AsNumber() Number {
@@ -94,7 +112,7 @@ func NewSymbol(s string) Atom {
 
 type Number = float64
 
-func NewNumber(v any) Atom {
+func NewPrimitive(v any) Atom {
     return NewAtom(v)
 }
 
@@ -122,6 +140,9 @@ func (a Atom) String() string {
 	if _, ok := a.value.(bool); ok {
 		return ""
 	}
+    if s, ok := a.value.(string); ok {
+        return s
+    }
 	return strconv.FormatFloat(a.AsNumber(), 'f', -1, 64)
 }
 
@@ -271,11 +292,6 @@ func (e Env) find(s Symbol) Env {
 
 func boolean(e SExpression) bool {
 	return e.AsAtom().value.(bool)
-}
-
-func atomWithValue(x any) Atom {
-    //TODO: abused for booleans
-    return NewNumber(x)
 }
 
 func builtinFunc(f func(args []SExpression) SExpression) Proc {

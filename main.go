@@ -3,8 +3,10 @@ package main
 // http://norvig.com/lispy.html
 
 import (
+    "bufio"
 	"fmt"
 	"math"
+    "os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -12,12 +14,11 @@ import (
 
 func main() {
 	env := GlobalEnv()
-	for _, s := range []string{
-		"(list 1 2 3)",
-		"(list (list (quote point) 1 2))",
-	} {
-		t := parse(s)
-		fmt.Println("> ", t)
+    scanner := bufio.NewScanner(os.Stdin)
+    for {
+		fmt.Print("> ")
+        scanner.Scan()
+		t := parse(scanner.Text())
 		e := evalEnv(t, env)
 		s := e.String()
 		if s != "" {
@@ -64,43 +65,53 @@ func readFromTokens(tokens []string) (SExpression, []string) {
 
 func atom(token string) SExpression {
 	if n, err := strconv.ParseFloat(token, 64); err == nil {
-        return NewNumber(n)
+        return NewPrimitive(n)
 	}
+    // TODO: strings cant have spaces in them atm!
+    if token[0] == token[len(token)-1] && token[0] == '"' {
+        return NewPrimitive(token[1:len(token)-1])
+    }
     return NewSymbol(token)
 }
 
 func GlobalEnv() Env {
 	return Env{dict: map[Symbol]SExpression{
 		"*": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(args[0].AsNumber() * args[1].AsNumber())
+			return NewPrimitive(args[0].AsNumber() * args[1].AsNumber())
 		}),
 		"+": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(args[0].AsNumber() + args[1].AsNumber())
+			return NewPrimitive(args[0].AsNumber() + args[1].AsNumber())
 		}),
 		"-": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(args[0].AsNumber() - args[1].AsNumber())
+			return NewPrimitive(args[0].AsNumber() - args[1].AsNumber())
 		}),
 		"=": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(args[0].AsNumber() == args[1].AsNumber())
+			return NewPrimitive(args[0].AsNumber() == args[1].AsNumber())
 		}),
 		">": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(args[0].AsNumber() > args[1].AsNumber())
+			return NewPrimitive(args[0].AsNumber() > args[1].AsNumber())
+		}),
+		"<": builtinFunc(func(args []SExpression) SExpression {
+			return NewPrimitive(args[0].AsNumber() < args[1].AsNumber())
 		}),
 		"<=": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(args[0].AsNumber() <= args[1].AsNumber())
+			return NewPrimitive(args[0].AsNumber() <= args[1].AsNumber())
 		}),
-		"#t":    atomWithValue(true),
-		"#f":    atomWithValue(false),
-		"pi":    atomWithValue(math.Pi),
+		">=": builtinFunc(func(args []SExpression) SExpression {
+			return NewPrimitive(args[0].AsNumber() >= args[1].AsNumber())
+		}),
+		"#t":    NewPrimitive(true),
+		"#f":    NewPrimitive(false),
+		"pi":    NewPrimitive(math.Pi),
 		"number?": builtinFunc(func(args []SExpression) SExpression {
-            return atomWithValue(args[0].IsNumber())
+            return NewPrimitive(args[0].IsNumber())
         }),
 		"pair?": builtinFunc(func(args []SExpression) SExpression {
             x := args[0]
             if !x.IsPair() {
-                return atomWithValue(false)
+                return NewPrimitive(false)
             }
-            return atomWithValue(x.AsPair() != empty)
+            return NewPrimitive(x.AsPair() != empty)
         }),
 		"car": builtinFunc(func(args []SExpression) SExpression {
 			return args[0].AsPair().car()
@@ -114,22 +125,36 @@ func GlobalEnv() Env {
 		"null?": builtinFunc(func(args []SExpression) SExpression {
 			x := args[0]
 			if x.IsProcedure() {
-				return atomWithValue(false)
+				return NewPrimitive(false)
 			}
 			if x.IsAtom() {
-				return atomWithValue(false)
+				return NewPrimitive(false)
 			}
-			return atomWithValue(x.AsPair() == empty)
+			return NewPrimitive(x.AsPair() == empty)
         }),
 		"procedure?": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(args[0].IsProcedure())
+			return NewPrimitive(args[0].IsProcedure())
         }),
 		"eqv?": builtinFunc(func(args []SExpression) SExpression {
-			return atomWithValue(reflect.DeepEqual(args[0], args[1]))
+			return NewPrimitive(reflect.DeepEqual(args[0], args[1]))
         }),
 		"display": builtinFunc(func(args []SExpression) SExpression {
 			fmt.Println(args[0])
-			return atomWithValue(true)
+			return NewPrimitive(true)
+        }),
+        "exit": builtinFunc(func(args []SExpression) SExpression {
+            os.Exit(0)
+            return nil
+        }),
+        "string-append": builtinFunc(func(args []SExpression) SExpression {
+            s := ""
+            for _, arg := range args {
+                s += arg.AsPrimitive().(string)
+            }
+            return NewPrimitive(s)
+        }),
+        "number->string": builtinFunc(func(args []SExpression) SExpression {
+            return NewPrimitive(fmt.Sprintf("%v", args[0].AsNumber()))
         }),
 	}, outer: nil}
 }
@@ -155,7 +180,7 @@ func expandMacro(p Pair) SExpression {
 	switch s {
 	case "cond":
         var expanded SExpression
-		expanded = atomWithValue(false)
+		expanded = NewPrimitive(false)
 		clauses := cons2list(p.cdr().AsPair())
 		for i := len(clauses) - 1; i >= 0; i-- {
 			clause := clauses[i].AsPair()
@@ -336,7 +361,7 @@ Loop:
                     continue Loop
 				}
 				if p.cdddr().AsPair() == empty {
-                    e = atomWithValue(false)
+                    e = NewPrimitive(false)
                     continue Loop
 				}
 				alt := p.cadddr()
@@ -354,7 +379,7 @@ Loop:
 				sym := p.cadr().AsSymbol()
 				exp := p.caddr()
 				env.dict[sym] = evalEnv(exp, env)
-				return atomWithValue(false)
+				return NewPrimitive(false)
 			case "quote":
 				return p.cadr()
 			case "lambda":

@@ -11,10 +11,10 @@ func TestKanren(t *testing.T) {
 		input string
 		want  string
 	}{
-        {
-            input: "empty-state",
-            want:  "(() . 0)",
-        },
+		{
+			input: "empty-state",
+			want:  "(() . 0)",
+		},
 		{
 			input: "((call/fresh (lambda (q) (equalo q 5))) empty-state)",
 			want:  "(((((var . 0) . 5)) . 1))",
@@ -48,7 +48,7 @@ func TestKanren(t *testing.T) {
 		},
 	} {
 		p := parse(tt.input)
-		e := evalEnv(p, env)
+		e := evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

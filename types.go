@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -14,156 +13,159 @@ import (
 // Primitives escape back to golang types
 
 type SExpression interface {
-    IsSymbol() bool
-    IsPrimitive() bool
-    IsNumber() bool
-    IsAtom() bool
-    IsPair() bool
-    IsExpression() bool
-    IsProcedure() bool
-    AsSymbol() Symbol
-    AsPrimitive() any
-    AsNumber() Number
-    AsAtom() Atom
-    AsPair() Pair
-    AsProcedure() Proc//edure
-    String() string
+	IsSymbol() bool
+	IsPrimitive() bool
+	IsNumber() bool
+	IsAtom() bool
+	IsPair() bool
+	IsExpression() bool
+	IsProcedure() bool
+	AsSymbol() Symbol
+	AsPrimitive() any
+	AsNumber() Number
+	AsAtom() Atom
+	AsPair() Pair
+	AsProcedure() Proc //edure
+	String() string
 }
 
 type sexpression struct {
-    isExpression bool
-    isAtom bool
-    isSymbol bool
-    value any
+	isExpression bool
+	isAtom       bool
+	isSymbol     bool
+	value        any
 }
 
+// NOTE: the below panics should never occur;
+// main loop should guard against that
+
 func (s sexpression) IsSymbol() bool {
-    return s.isExpression && s.isAtom && s.isSymbol
+	return s.isExpression && s.isAtom && s.isSymbol
 }
 
 func (s sexpression) IsPrimitive() bool {
-    return s.isExpression && s.isAtom && !s.isSymbol
+	return s.isExpression && s.isAtom && !s.isSymbol
 }
 
 func (s sexpression) IsNumber() bool {
-    if !s.IsPrimitive() {
-        return false
-    }
-    _, ok := s.value.(Number)
-    return ok
+	if !s.IsPrimitive() {
+		return false
+	}
+	_, ok := s.value.(Number)
+	return ok
 }
 
 func (s sexpression) IsAtom() bool {
-    return s.isExpression && s.isAtom
+	return s.isExpression && s.isAtom
 }
 
 func (s sexpression) IsPair() bool {
-    return s.isExpression && !s.isAtom
+	return s.isExpression && !s.isAtom
 }
 
 func (s sexpression) IsExpression() bool {
-    return s.isExpression
+	return s.isExpression
 }
 
 func (s sexpression) IsProcedure() bool {
-    return !s.isExpression
+	return !s.isExpression
 }
 
 func (s sexpression) AsSymbol() Symbol {
-    if !s.IsSymbol() {
-        panic("not a symbol")
-    }
-    return s.value.(Symbol)
+	if !s.IsSymbol() {
+		panic("not a symbol")
+	}
+	return s.value.(Symbol)
 }
 
 func (s sexpression) AsPrimitive() any {
-    if !s.IsPrimitive() {
-        panic("not a primitive")
-    }
-    return s.value
+	if !s.IsPrimitive() {
+		panic("not a primitive")
+	}
+	return s.value
 }
 
 func (s sexpression) AsNumber() Number {
-    if !s.IsNumber() {
-        panic("not a number")
-    }
-    return s.value.(Number)
+	if !s.IsNumber() {
+		panic("not a number")
+	}
+	return s.value.(Number)
 }
 
 func (s sexpression) AsAtom() Atom {
-    panic("not an atom")
+	panic("not an atom")
 }
 
 func (s sexpression) AsPair() Pair {
-    panic("not a pair")
+	panic("not a pair")
 }
 
 func (s sexpression) AsProcedure() Proc {
-    panic("not a procedure")
+	panic("not a procedure")
 }
 
 type Symbol = string
 
 func NewSymbol(s string) Atom {
-    a := NewAtom(s)
-    a.isSymbol = true
-    return a
+	a := NewAtom(s)
+	a.isSymbol = true
+	return a
 }
 
 type Number = float64
 
 func NewPrimitive(v any) Atom {
-    return NewAtom(v)
+	return NewAtom(v)
 }
 
 type Atom struct {
-    sexpression
+	sexpression
 }
 
 func NewAtom(v any) Atom {
-    return Atom{sexpression{
-        isExpression: true,
-        isAtom: true,
-        value: v,
-    }}
+	return Atom{sexpression{
+		isExpression: true,
+		isAtom:       true,
+		value:        v,
+	}}
 }
 
 func (a Atom) AsAtom() Atom {
-    return a
+	return a
 }
 
 func (a Atom) String() string {
 	if a.IsSymbol() {
 		return a.AsSymbol()
 	}
-    // TODO: hacked bool type into Number type here!
+	// TODO: hacked bool type into Number type here!
 	if _, ok := a.value.(bool); ok {
 		return ""
 	}
-    if s, ok := a.value.(string); ok {
-        return s
-    }
+	if s, ok := a.value.(string); ok {
+		return s
+	}
 	return strconv.FormatFloat(a.AsNumber(), 'f', -1, 64)
 }
 
 type Pair struct {
-    sexpression
-    pcar SExpression
-    pcdr SExpression
+	sexpression
+	pcar SExpression
+	pcdr SExpression
 }
 
 func NewPair(car, cdr SExpression) Pair {
-    return Pair{
-        sexpression: sexpression{
-            isExpression: true,
-        },
-        pcar: car,
-        pcdr: cdr,
-    }
+	return Pair{
+		sexpression: sexpression{
+			isExpression: true,
+		},
+		pcar: car,
+		pcdr: cdr,
+	}
 }
 
 func (p Pair) AsPair() Pair {
-    return p
+	return p
 }
 
 func (p Pair) car() SExpression {
@@ -193,7 +195,7 @@ func (p Pair) cadddr() SExpression {
 }
 
 func (p Pair) cddr() SExpression {
-    return p.cdr().AsPair().cdr()
+	return p.cdr().AsPair().cdr()
 }
 
 func (p Pair) cdddr() SExpression {
@@ -242,12 +244,12 @@ func cons2list(p Pair) []SExpression {
 }
 
 type Proc struct {
-    sexpression
+	sexpression
 	isBuiltin bool // user defined proc if false
 }
 
 func (p Proc) AsProcedure() Proc {
-    return p
+	return p
 }
 
 func (p Proc) builtin() BuiltinProc {
@@ -264,43 +266,19 @@ func (p Proc) defined() DefinedProc {
 }
 
 func (p Proc) String() string {
-    return "#<proc>"
+	return "#<proc>"
 }
 
 type DefinedProc struct {
 	params Pair
 	body   SExpression
-	env    Env
+	env    *Env
 }
 
 type BuiltinProc = func([]SExpression) SExpression
 
-type Env struct {
-	dict  map[Symbol]SExpression
-	outer *Env
-}
-
-func (e Env) find(s Symbol) Env {
-	if _, ok := e.dict[s]; ok {
-		return e
-	}
-	if e.outer == nil {
-		panic(fmt.Sprintf("not found in env: %s", s))
-	}
-	return e.outer.find(s)
-}
-
 func boolean(e SExpression) bool {
 	return e.AsAtom().value.(bool)
-}
-
-func builtinFunc(f func(args []SExpression) SExpression) Proc {
-    return Proc{
-        isBuiltin: true,
-        sexpression: sexpression{
-            value: f,
-        },
-    }
 }
 
 func isTruthy(x SExpression) bool {

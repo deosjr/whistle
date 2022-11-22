@@ -116,7 +116,7 @@ func TestLisp(t *testing.T) {
 		},
 	} {
 		p := parse(tt.input)
-		e := evalEnv(p, env)
+		e := evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -130,24 +130,24 @@ func TestTailRecursion(t *testing.T) {
 		input string
 		want  string
 	}{
-        {
-            input: "(define sum-to (lambda (n) (if (= n 0) 0 (+ n (sum-to (- n 1))))))",
-        },
-        {
-            input: "(sum-to 10)",
-            want: "55",
-        },
-        {
-            input: "(define sum-to (lambda (n acc) (if (= n 0) acc (sum-to (- n 1) (+ n acc)))))",
-        },
-        {
-            // NOTE: without accumulator (ie with definition above) this results in stackoverflow
-            input: "(sum-to 1000000 0)",
-            want: "500000500000",
-        },
+		{
+			input: "(define sum-to (lambda (n) (if (= n 0) 0 (+ n (sum-to (- n 1))))))",
+		},
+		{
+			input: "(sum-to 10)",
+			want:  "55",
+		},
+		{
+			input: "(define sum-to (lambda (n acc) (if (= n 0) acc (sum-to (- n 1) (+ n acc)))))",
+		},
+		{
+			// NOTE: without accumulator (ie with definition above) this results in stackoverflow
+			input: "(sum-to 1000000 0)",
+			want:  "500000500000",
+		},
 	} {
 		p := parse(tt.input)
-		e := evalEnv(p, env)
+		e := evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

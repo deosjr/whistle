@@ -86,13 +86,17 @@ var kanren = []string{
 	`(define reify-state/1st-var (lambda (s/c)
        (let ((v (walk* (var 0) (car s/c))))
          (walk* v (reify-s v (quote ()))))))`,
-	// NOTE: leaving out reify-name, since I don't have strings
 	`(define reify-s (lambda (v s)
        (let ((v (walk v s)))
          (cond
-           [(var? v) (cons (cons v (length s)) s)]
+           [(var? v) 
+            (let ((n (reify-name (length s))))
+              (cons (cons v n) s))]
            [(pair? v) (reify-s (cdr v) (reify-s (car v) s))]
            [else s]))))`,
+	`(define reify-name (lambda (n)
+       (string->symbol
+         (string-append "_" "." (number->string n)))))`,
 	`(define walk* (lambda (v s)
        (let ((v (walk v s)))
          (cond

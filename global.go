@@ -32,6 +32,7 @@ func GlobalEnv() *Env {
 		"exit":           builtinFunc(exit),
 		"string-append":  builtinFunc(stringappend),
 		"number->string": builtinFunc(number2string),
+		"string->symbol": builtinFunc(string2symbol),
 	}, outer: nil}
 }
 
@@ -139,4 +140,8 @@ func stringappend(args []SExpression) SExpression {
 
 func number2string(args []SExpression) SExpression {
 	return NewPrimitive(fmt.Sprintf("%v", args[0].AsNumber()))
+}
+
+func string2symbol(args []SExpression) SExpression {
+	return NewSymbol(args[0].AsPrimitive().(string))
 }

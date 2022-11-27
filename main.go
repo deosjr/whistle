@@ -54,7 +54,7 @@ func readFromTokens(tokens []string) (SExpression, []string) {
 			tokens = t
 			list = append(list, parsed)
 		}
-        syntaxCheck(list)
+		syntaxCheck(list)
 		return list2cons(list...), tokens[1:]
 	case ")":
 		panic("unexpected ')'")
@@ -78,40 +78,40 @@ func atom(token string) SExpression {
 // so we don't encounter weirdness at runtime
 // TODO: how does this work with macros?
 func syntaxCheck(list []SExpression) {
-    if len(list) == 0 {
-        return
-    }
-    if !list[0].IsSymbol() {
-        return
-    }
-    switch list[0].AsSymbol() {
-    case "if":
-        if len(list) != 3 && len(list) != 4 {
-            panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
-        }
-    case "begin":
-        if len(list) == 1 {
-            panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
-        }
-    case "quote":
-        if len(list) != 2 {
-            panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
-        }
-    case "define":
-        if len(list) != 3 {
-            panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
-        }
-        if !list[1].IsSymbol() {
-            panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
-        }
-    case "lambda":
-        if len(list) != 3 {
-            panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
-        }
-        if !list[1].IsPair() {
-            panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
-        }
-    }
+	if len(list) == 0 {
+		return
+	}
+	if !list[0].IsSymbol() {
+		return
+	}
+	switch list[0].AsSymbol() {
+	case "if":
+		if len(list) != 3 && len(list) != 4 {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+	case "begin":
+		if len(list) == 1 {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+	case "quote":
+		if len(list) != 2 {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+	case "define":
+		if len(list) != 3 {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+		if !list[1].IsSymbol() {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+	case "lambda":
+		if len(list) != 3 {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+		if !list[1].IsPair() {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+	}
 }
 
 type Env struct {
@@ -124,11 +124,10 @@ func (e Env) find(s Symbol) Env {
 		return e
 	}
 	if e.outer == nil {
-        panic(fmt.Sprintf("Exception: variable %s is not bound", s))
+		panic(fmt.Sprintf("Exception: variable %s is not bound", s))
 	}
 	return e.outer.find(s)
 }
-
 
 func newEnv(params Pair, args []SExpression, outer *Env) *Env {
 	m := map[Symbol]SExpression{}
@@ -159,29 +158,29 @@ Loop:
 			return e
 		}
 		// list, at which point car should be one of two things:
-        // smth evaluating to procedure, or one of a few builtin symbols (which mark builtin procedures)
+		// smth evaluating to procedure, or one of a few builtin symbols (which mark builtin procedures)
 		p := e.AsPair()
 		car := p.car()
 		if car.IsSymbol() {
 			s := car.AsSymbol()
-            // builtin funcs that arent like other builtins:
-            // they rely on their args not being evaluated first
-            // their syntactic forms are checked at read-time
+			// builtin funcs that arent like other builtins:
+			// they rely on their args not being evaluated first
+			// their syntactic forms are checked at read-time
 			switch s {
 			case "if":
-	            test := p.cadr()
-	            conseq := p.caddr()
-	            tested := evalEnv(env, test)
-	            if isTruthy(tested) {
-                    e = conseq
-                    continue Loop
-	            }
-	            if p.cdddr().AsPair() == empty {
-		            e = NewPrimitive(false)
-                    continue Loop
-	            }
-	            alt := p.cadddr()
-                e = alt
+				test := p.cadr()
+				conseq := p.caddr()
+				tested := evalEnv(env, test)
+				if isTruthy(tested) {
+					e = conseq
+					continue Loop
+				}
+				if p.cdddr().AsPair() == empty {
+					e = NewPrimitive(false)
+					continue Loop
+				}
+				alt := p.cadddr()
+				e = alt
 				continue Loop
 			case "begin":
 				args := p.cdr().AsPair()
@@ -212,10 +211,10 @@ Loop:
 			}
 		}
 		// procedure call
-        e = evalEnv(env, car)
-        if !e.IsProcedure() {
-            panic(fmt.Sprintf("Exception: attempt to apply non-procedure %s", e))
-        }
+		e = evalEnv(env, car)
+		if !e.IsProcedure() {
+			panic(fmt.Sprintf("Exception: attempt to apply non-procedure %s", e))
+		}
 		proc := e.AsProcedure()
 		args := []SExpression{}
 		cdr := p.cdr().AsPair()

@@ -51,6 +51,9 @@ func readFromTokens(tokens []string) (SExpression, []string) {
 		list := []SExpression{}
 		for tokens[0] != ")" {
 			parsed, t := readFromTokens(tokens)
+			if len(t) == 0 {
+				panic("syntax error")
+			}
 			tokens = t
 			list = append(list, parsed)
 		}

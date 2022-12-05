@@ -232,6 +232,78 @@ func TestLearnKanren(t *testing.T) {
 			input: "(run* ((lambda (x) (bind ((five-six-seven x) empty-state) (seven-eight-nine x))) (var 0)))",
 			want:  "(7)",
 		},
+        {
+            // can we define an ifthenelse now that we know how mplus/bind work?
+            // would it be pure? why/why not? how does this work with infinite streams?
+            input: `(define ifthenelse (lambda (g1 g2 g3)
+                      (lambda (s/c)
+                        (let ((s (pull (g1 s/c))))
+                          (if (null? s)
+                            (g3 s/c)
+                            (bind s g2))))))`,
+        },
+        {
+            // commits to the goal it can satisfy (x==1), binding y==2 and never returns y==3
+            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (ifthenelse (equalo x 1) (equalo y 2) (equalo y 3)))))))",
+            want:  "(((((var . 1) . 2) ((var . 0) . 1)) . 2))",
+        },
+        {
+            // now the first goal fails, so we commit to the else clause of y==3.
+            // since the first goal failed, we know that x=\=1
+            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (equalo x 1) (equalo y 2) (equalo y 3))))))))",
+            want:  "(((((var . 1) . 3) ((var . 0) . 2)) . 2))",
+        },
+        {
+            // (AND x==2 ( IF (OR X==1 X==2) Y==2 Y==3 ))
+            // this returns x==2, y==2 and nothing else
+            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (disj (equalo x 1) (equalo x 2)) (equalo y 2) (equalo y 3))))))))",
+            want:  "(((((var . 1) . 2) ((var . 0) . 2)) . 2))",
+        },
+        {
+            // works with disj+ macro, which wraps inverse-eta-delay around all its goals (making them immature to start)
+            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (disj+ (equalo x 1) (equalo x 2)) (equalo y 2) (equalo y 3))))))))",
+            want:  "(((((var . 1) . 2) ((var . 0) . 2)) . 2))",
+        },
+        {
+            // turns out that was almost (but not quite) correct. Heres ifte from
+            // microKanren: A Lucid Little Logic Language with a Simple Complete Search
+            // ifte + once together constitute Prolog's cut operator, definitely impure (example?)
+            // note how loop is needed to properly work with infinite streams
+            // lots of extra overhead for not having some syntactic sugar but essence is the same
+            input: `(define ifte (lambda (g0 g1 g2)
+                      (lambda (s/c)
+                        (begin
+                        (define loop (lambda (s)
+                          (cond
+                            [(null? s) (g2 s/c)]
+                            [(procedure? s) (lambda () (loop (s)))]
+                            [else (bind g1 s)])))
+                        (loop (g0 s/c))))))`,
+        },
+        {
+            // using ifte
+            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifte (equalo x 1) (equalo y 2) (equalo y 3))))))))",
+            want:  "(((((var . 1) . 3) ((var . 0) . 2)) . 2))",
+        },
+        {
+            // and here is once/1. ifte(once(g0), g1, g2) is equivalent to cut
+            input: `(define once (lambda (g)
+                      (lambda (s/c)
+                        (begin
+                        (define loop (lambda (s)
+                          (cond
+                            [(null? s) mzero]
+                            [(procedure? s) (lambda () (loop (s)))]
+                            [else (list (car s))])))
+                        (loop (g s/c))))))`,
+        },
+        {
+            input: "(call/empty-state (call/fresh (lambda (x) (once (disj (equalo x 1) (equalo x 2))))))",
+            want:  "(((((var . 0) . 1)) . 1))",
+        },
+        // TODO: showcase ifte being impure
+        // I want to get to pure ifte but would need disequality constraints first
+        // Neumerkel/Kral (2016) - Indexing dif/2
 	} {
 		p := parse(tt.input)
 		e := evalEnv(env, p)

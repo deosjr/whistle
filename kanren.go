@@ -1,6 +1,7 @@
 package main
 
 // http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
+// muKanren: A Minimal Functional Core for Relational Programming
 
 var kanren = []string{
 	// instead of using vector, we just use ('var x) pairs for vars

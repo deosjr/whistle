@@ -1,8 +1,31 @@
 package main
 
 import (
+    "reflect"
     "testing"
 )
+
+func TestUnification(t *testing.T) {
+	for i, tt := range []struct {
+		pattern string
+        input   string
+		want    map[string]syntaxSub
+	} {
+        {
+            pattern: "(_ x)",
+            input:   "(macro 42)",
+            want:    map[string]syntaxSub{
+                "x": syntaxSub{sexpr: parse("42")},
+            },
+        },
+    } {
+        s := map[string]syntaxSub{}
+        ok := unify(parse(tt.pattern), parse(tt.input), s)
+        if !ok || !reflect.DeepEqual(s, tt.want) {
+            t.Errorf("%d) got %v want %v", i, s, tt.want)
+        }
+    }
+}
 
 func TestDefSyntax(t *testing.T) {
 	env := GlobalEnv()
@@ -22,11 +45,18 @@ func TestDefSyntax(t *testing.T) {
             want:  "(1 . 2)",
         },
         {
+            input: "(define-syntax test-macro (syntax-rules () ((_ (a b)) (cons b a))))",
+        },
+        {
+            input: "(test-macro (1 2))",
+            want:  "(2 . 1)",
+        },
+        {
             input: `(define-syntax or
                       (syntax-rules ()
                         ((_) #f)
                         ((_ e) e)
-                        ((_ e ...) (if e e (or ...)))))`,
+                        ((_ e1 e2 ...) (if e1 e1 (or e2 ...)))))`,
         },
         {
             input: "(or #f #f 'yes)",

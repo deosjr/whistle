@@ -72,12 +72,19 @@ var kanren = []string{
              ((null? s) (quote ()))
              (else (cons (car s) (take (- n 1) (cdr s)))))))))`,
 
-	// these are macros, but I don't have proper macro support yet
-	// currently hardcoded in the macro lookup map
-	// notably, defining these like lambdas leads to infinite loops
-	//`(define zzz (lambda (g)
-	//  (lambda (s/c) (lambda () (g s/c)))))`,
-	// same for conj+, disj+, conde, fresh
+    `(define-syntax zzz
+       (syntax-rules ()
+         ((_ g) (lambda (s/c) (lambda () (g s/c))))))`,
+
+    `(define-syntax conj+
+       (syntax-rules ()
+         ((_ g) (zzz g))
+         ((_ g0 g ...) (conj (zzz g0) (conj+ g ...)))))`,
+
+    `(define-syntax disj+
+       (syntax-rules ()
+         ((_ g) (zzz g))
+         ((_ g0 g ...) (disj (zzz g0) (disj+ g ...)))))`,
 
 	// length and map are needed in reify
 	"(define length (lambda (x) (if (null? x) 0 (+ 1 (length (cdr x))))))",

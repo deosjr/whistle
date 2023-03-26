@@ -1,19 +1,24 @@
 package main
 
-import "fmt"
+import (
+    "fmt"
+    "reflect"
+)
 
 const ellipsis = "..."
+const underscore = "_"
 
 // For now macros are always globally defined, and even shared between runtimes(!)
 var macromap = map[string]transformer{
     "cond": transformer_cond,
     "let" : transformer_let,
-    "and" : transformer_and,
+    "and" : syntaxRules(parse(`(syntax-rules ()
+                                 ((_) #t)
+                                 ((_ e) e)
+                                 ((_ e1 e2 ...) (if e1 (and e2 ...) #f))
+                                 )`).AsPair()),
     "list": transformer_list,
     // kanren macros, to be defined instead
-    "zzz" : transformer_zzz,
-    "conj+" : transformer_conj,
-    "disj+" : transformer_disj,
     "conde" : transformer_conde,
     "fresh" : transformer_fresh,
 }
@@ -31,6 +36,13 @@ func expandMacro(p Pair) (SExpression, bool) {
     }
     return tf(p), true
 }
+
+// TODO:
+// - replace variables with gensyms in both pattern and template
+// x unify pattern with input pair ('unify')
+// x unify resulting substitution with template ('substitute')
+// x take into account ellipsis when unifying
+// - take into account literals when unifying
 
 // assuming for now every define-syntax is followed by syntax-rules
 func syntaxRules(sr Pair) transformer {
@@ -54,30 +66,88 @@ func syntaxRules(sr Pair) transformer {
     }
 }
 
+type syntaxSub struct {
+    sexpr SExpression
+    hasEllipsis bool
+    ellipsis Pair
+}
+
+// matching pattern to input, returning substitutions needed for valid unification if any
+// TODO: for now, all symbols are pattern variables
+func unify(p, q SExpression, s map[string]syntaxSub) bool {
+    switch {
+    case p.IsSymbol():
+        ps := p.AsSymbol()
+        if ps == underscore {
+            return true
+        }
+        prev, ok := s[ps]
+        if !ok {
+            s[ps] = syntaxSub{sexpr:q}
+            return true
+        }
+        return reflect.DeepEqual(prev.sexpr, q)
+    case p.IsPair():
+        if !q.IsPair() {
+            return false
+        }
+        pp := p.AsPair()
+        qq := q.AsPair()
+        if pp == empty || qq == empty {
+            return pp == empty && qq == empty
+        }
+        if !unify(pp.car(), qq.car(), s) {
+            return false
+        }
+        // test for ellipsis
+        if pp.cdr() != empty {
+            if pp.cadr().IsSymbol() && pp.cadr().AsSymbol() == ellipsis && pp.cddr() == empty {
+                if !pp.car().IsSymbol() {
+                    return false
+                }
+                ps := pp.car().AsSymbol()
+                prevsub, ok := s[ps]
+                if !ok {
+                    return false
+                }
+                prevsub.hasEllipsis = true
+                prevsub.ellipsis = qq.cdr().AsPair()
+                s[ps] = prevsub
+                return true
+            }
+        }
+        if !unify(pp.cdr(), qq.cdr(), s) {
+            return false
+        }
+        return true
+    }
+    return false
+}
+
 func matchClause(pair, pattern Pair, template SExpression) (SExpression, bool) {
     pairList := cons2list(pair)
     patternList := cons2list(pattern)
     lastInPattern := patternList[len(patternList)-1]
-    if lastInPattern.AsSymbol() == ellipsis {
+    if lastInPattern.IsSymbol() && lastInPattern.AsSymbol() == ellipsis {
         n := len(patternList)-1
         pairList = append(pairList[:n], list2cons(pairList[n:]...))
     }
     if len(pairList) != len(patternList) {
         return nil, false
     }
-    substitutions := map[string]SExpression{}
-    for i:=1; i < len(patternList); i++ {
-        substitutions[patternList[i].AsSymbol()] = pairList[i]
+    substitutions := map[string]syntaxSub{}
+    if !unify(pattern, pair, substitutions) {
+        return nil, false
     }
     return substituteTemplate(substitutions, template), true
 }
 
-func substituteTemplate(substitutions map[string]SExpression, template SExpression) SExpression {
+func substituteTemplate(substitutions map[string]syntaxSub, template SExpression) SExpression {
     if template.IsAtom() {
         if template.IsSymbol() {
             s, ok := substitutions[template.AsSymbol()]
             if ok {
-                return s
+                return s.sexpr
             }
         }
         return template
@@ -89,12 +159,14 @@ func substituteTemplate(substitutions map[string]SExpression, template SExpressi
             out = append(out, substituteTemplate(substitutions, t))
             continue
         }
+        if t.AsSymbol() == ellipsis {
+            continue
+        }
         s, ok := substitutions[t.AsSymbol()]
         if ok {
-            if t.AsSymbol() == ellipsis {
-                out = append(out, cons2list(s.AsPair())...)
-            } else {
-                out = append(out, s)
+            out = append(out, s.sexpr)
+            if s.hasEllipsis {
+                out = append(out, cons2list(s.ellipsis)...)
             }
             continue
         }
@@ -154,22 +226,6 @@ func transformer_let(p Pair) SExpression {
 	return NewPair(lambda, list2cons(exps...))
 }
 
-func transformer_and(p Pair) SExpression {
-	clauses := p.cdr().AsPair()
-	if clauses == empty {
-		return NewSymbol("#t")
-	}
-	if clauses.cdr().AsPair() == empty {
-		return clauses.car()
-	}
-	return list2cons(
-		NewSymbol("if"),
-		clauses.car(),
-		NewPair(NewSymbol("and"), clauses.cdr()),
-		NewSymbol("#f"),
-	)
-}
-
 func transformer_list(p Pair) SExpression {
 	clauses := p.cdr().AsPair()
 	if clauses == empty {
@@ -179,47 +235,6 @@ func transformer_list(p Pair) SExpression {
 		NewSymbol("cons"),
 		clauses.car(),
 		NewPair(NewSymbol("list"), clauses.cdr()),
-	)
-}
-
-func transformer_zzz(p Pair) SExpression {
-	goal := p.cadr()
-	sc := NewSymbol("s/c")
-	lambda := list2cons(
-		NewSymbol("lambda"),
-		empty,
-		list2cons(goal, sc),
-	)
-	return list2cons(
-		NewSymbol("lambda"),
-		list2cons(sc),
-		lambda,
-	)
-}
-
-func transformer_conj(p Pair) SExpression {
-	g0 := list2cons(NewSymbol("zzz"), p.cadr())
-	g := p.cddr()
-	if g.AsPair() == empty {
-		return g0
-	}
-	return list2cons(
-		NewSymbol("conj"),
-		g0,
-		NewPair(NewSymbol("conj+"), g),
-	)
-}
-
-func transformer_disj(p Pair) SExpression {
-	g0 := list2cons(NewSymbol("zzz"), p.cadr())
-	g := p.cddr()
-	if g.AsPair() == empty {
-		return g0
-	}
-	return list2cons(
-		NewSymbol("disj"),
-		g0,
-		NewPair(NewSymbol("disj+"), g),
 	)
 }
 

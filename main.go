@@ -74,6 +74,11 @@ func atom(token string) SExpression {
 	if token[0] == token[len(token)-1] && token[0] == '"' {
 		return NewPrimitive(token[1 : len(token)-1])
 	}
+    // TODO quote syntax only works on symbols, not lists atm!
+    if token[0] == '\'' {
+        quote, _ := readFromTokens([]string{"(", "quote", token[1:], ")"})
+        return quote
+    }
 	return NewSymbol(token)
 }
 
@@ -107,6 +112,26 @@ func syntaxCheck(list []SExpression) {
 		if !list[1].IsSymbol() {
 			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
 		}
+	case "define-syntax":
+		if len(list) != 3 {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+		if !list[1].IsSymbol() {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+	case "syntax-rules":
+		if !list[1].IsPair() {
+			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+		}
+        for _, e := range list[2:] {
+            if !e.IsPair() {
+			    panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+            }
+            p := cons2list(e.AsPair())
+            if len(p) != 2 {
+			    panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+            }
+        }
 	case "lambda":
 		if len(list) != 3 {
 			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
@@ -151,7 +176,11 @@ func evalEnv(env *Env, e SExpression) SExpression {
 Loop:
 	for {
 		if e.IsPair() {
-			e = expandMacro(e.AsPair())
+			ex, ok := expandMacro(e.AsPair())
+            if ok {
+                e = ex
+                continue Loop
+            }
 		}
 		if e.IsAtom() {
 			if e.IsSymbol() {
@@ -200,6 +229,11 @@ Loop:
 				exp := p.caddr()
 				env.dict[sym] = evalEnv(env, exp)
 				return NewPrimitive(false)
+            case "define-syntax":
+                keyword := p.cadr().AsSymbol()
+                transformer := p.caddr().AsPair()
+                macromap[keyword] = syntaxRules(transformer)
+				return NewPrimitive(false)
 			case "lambda":
 				params := p.cadr().AsPair()
 				body := p.caddr()
@@ -210,7 +244,7 @@ Loop:
 						env:    env,
 					},
 				}}
-				// default: falls through to procedure call
+			// default: falls through to procedure call
 			}
 		}
 		// procedure call

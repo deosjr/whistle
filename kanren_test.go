@@ -313,3 +313,56 @@ func TestLearnKanren(t *testing.T) {
 		}
 	}
 }
+
+func TestKanrenDCG(t *testing.T) {
+	env := GlobalEnv()
+	loadKanren(env)
+	for i, tt := range []struct {
+		input string
+		want  string
+	}{
+        {
+            input: "(define conso (lambda (a b l) (equalo (cons a b) l)))",
+        },
+        {
+            input: `(define diflist (lambda (l x dl)
+                      (conde
+                        [(equalo (quote ()) l) (equalo x dl)]
+                        [(fresh (a d ddl)
+                           (conso a d l)
+                           (diflist d x ddl)
+                           (conso a ddl dl))])))`,
+        },
+        {
+            input: `(define appendo (lambda (a b c d e f)
+                      (conj+ (equalo a e) (equalo b c) (equalo d f))))`,
+        },
+        {
+            input: `(run* (fresh (q a x b y c z)
+                            (diflist (list 1 2) x a)
+                            (diflist (list 3 4) y b)
+                            (equalo z (quote ()))
+                            (equalo c q)
+                            (appendo a x b y c z)))`,
+            want: "((1 2 3 4))",
+        },
+        {
+            // diverges at (run 6) or (run*)
+            input: `(run 5 (fresh (q p a x b y c z)
+                            (diflist q x a)
+                            (diflist p y b)
+                            (diflist (list 1 2 3 4) z c)
+                            (equalo z (quote ()))
+                            (appendo a x b y c z)))`,
+            want: "(() (1) (1 2) (1 2 3) (1 2 3 4))",
+        },
+        // TODO: build a --> macro or equivalent to play around with macros?
+    } {
+		p := parse(tt.input)
+		e := evalEnv(env, p)
+		got := e.String()
+		if got != tt.want {
+			t.Errorf("%d) got %s want %s", i, got, tt.want)
+		}
+	}
+}

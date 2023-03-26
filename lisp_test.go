@@ -31,6 +31,10 @@ func TestLisp(t *testing.T) {
 			want:  "quoted",
 		},
 		{
+			input: "'quoted",
+			want:  "quoted",
+		},
+		{
 			input: "(if (number? (quote ())) 4 5)",
 			want:  "5",
 		},

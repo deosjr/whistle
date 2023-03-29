@@ -325,6 +325,7 @@ func TestKanrenDCG(t *testing.T) {
             input: "(define conso (lambda (a b l) (equalo (cons a b) l)))",
         },
         {
+            // NOTE: alternate clause should have l =!= emptylist I think?
             input: `(define diflist (lambda (l x dl)
                       (conde
                         [(equalo (quote ()) l) (equalo x dl)]

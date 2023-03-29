@@ -176,6 +176,9 @@ func evalEnv(env *Env, e SExpression) SExpression {
 Loop:
 	for {
 		if e.IsPair() {
+            if e.AsPair() == empty {
+                panic("invalid syntax ()")
+            }
 			ex, ok := expandMacro(e.AsPair())
             if ok {
                 e = ex

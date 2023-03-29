@@ -12,14 +12,19 @@ const underscore = "_"
 // For now macros are always globally defined, and even shared between runtimes(!)
 var macromap = map[string]transformer{
     "cond": transformer_cond,
-    "let" : transformer_let,
+    // TODO: needs a 'begin' in lambda because my lambda implementation only takes 1 body
+    "let" : syntaxRules(parse(`(syntax-rules ()
+                                 ((_ ((var exp) ...) body1 body2 ...)
+                                   ((lambda (var ...) (begin body1 body2 ...)) exp ...)))`).AsPair()),
     "and" : syntaxRules(parse(`(syntax-rules ()
                                  ((_) #t)
                                  ((_ e) e)
-                                 ((_ e1 e2 e3 ...) (if e1 (and e2 e3 ...) #f))
-                                 )`).AsPair()),
-    "list": transformer_list,
+                                 ((_ e1 e2 e3 ...) (if e1 (and e2 e3 ...) #f)))`).AsPair()),
+    "list": syntaxRules(parse(`(syntax-rules ()
+                                 ((_) (quote ()))
+                                 ((_ a b ...) (cons a (list b ...))))`).AsPair()),
     // kanren macros, to be defined instead
+    // TODO: conde cannot be defined yet because it includes conj+ within an ellipsis
     "conde" : transformer_conde,
     "fresh" : transformer_fresh,
 }
@@ -279,36 +284,6 @@ func transformer_cond(p Pair) SExpression {
 		)
 	}
 	return expanded.AsPair()
-}
-
-func transformer_let(p Pair) SExpression {
-	bindings := cons2list(p.cadr().AsPair())
-	body := p.caddr()
-	vars := make([]SExpression, len(bindings))
-	exps := make([]SExpression, len(bindings))
-	for i, b := range bindings {
-		bl := b.AsPair() // list of len 2
-		vars[i] = bl.car()
-		exps[i] = bl.cadr()
-	}
-	lambda := list2cons(
-		NewSymbol("lambda"),
-		list2cons(vars...),
-		body,
-	)
-	return NewPair(lambda, list2cons(exps...))
-}
-
-func transformer_list(p Pair) SExpression {
-	clauses := p.cdr().AsPair()
-	if clauses == empty {
-		return list2cons(NewSymbol("quote"), empty)
-	}
-	return list2cons(
-		NewSymbol("cons"),
-		clauses.car(),
-		NewPair(NewSymbol("list"), clauses.cdr()),
-	)
 }
 
 func transformer_conde(p Pair) SExpression {

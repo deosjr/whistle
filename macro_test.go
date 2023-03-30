@@ -58,7 +58,8 @@ func TestAnalysePattern(t *testing.T) {
     } {
         sp := parse(tt.pattern)
         gensyms := map[Symbol]Symbol{}
-        got := analysePattern(tt.literals, sp, gensyms)
+        ellipsis := map[Symbol]int{}
+        got := analysePattern(tt.literals, sp, gensyms, ellipsis)
         // gensyms contains a->hashA lookups. for this test, we can reverse those
         // and check against our wanted pattern which uses non-hashed var names
         revGensym := map[Symbol]Symbol{}
@@ -76,6 +77,7 @@ func TestAnalyseTemplate(t *testing.T) {
 	for i, tt := range []struct {
         template string 
         gensyms  map[Symbol]Symbol
+        ellipsis map[Symbol]int
 		want     pattern
 	} {
         {
@@ -85,7 +87,7 @@ func TestAnalyseTemplate(t *testing.T) {
         },
 	} {
         st := parse(tt.template)
-        got := analyseTemplate(st, tt.gensyms)
+        got := analyseTemplate(st, tt.gensyms, tt.ellipsis)
         revGensym := map[Symbol]Symbol{}
         for k, v := range tt.gensyms {
             revGensym[v] = k
@@ -165,7 +167,8 @@ func TestUnification(t *testing.T) {
         },
     } {
         gensyms := map[Symbol]Symbol{}
-        pp := analysePattern(nil, parse(tt.pattern), gensyms)
+        ellipsis := map[Symbol]int{}
+        pp := analysePattern(nil, parse(tt.pattern), gensyms, ellipsis)
         revGensym := map[Symbol]Symbol{}
         for k, v := range gensyms {
             revGensym[v] = k
@@ -193,6 +196,7 @@ func TestSubstitution(t *testing.T) {
 	for i, tt := range []struct {
 		template      string
 		substitutions map[Symbol]SExpression
+        ellipsis      map[Symbol]int
         want          string
 	} {
         {
@@ -224,6 +228,7 @@ func TestSubstitution(t *testing.T) {
                 "b#1": parse("3"),
                 "b#2": parse("4"),
             },
+            ellipsis: map[Symbol]int{"b":1},
             want:   "(1 2 3 4)",
         },
         {
@@ -231,6 +236,7 @@ func TestSubstitution(t *testing.T) {
             substitutions: map[Symbol]SExpression{
                 "a#0": parse("1"),
             },
+            ellipsis: map[Symbol]int{"a":1, "b":2},
             want:   "((1))",
         },
         {
@@ -241,6 +247,7 @@ func TestSubstitution(t *testing.T) {
                 "a#1":   parse("3"),
                 "b#1#0": parse("4"),
             },
+            ellipsis: map[Symbol]int{"a":1, "b":2},
             want:   "((1 2) (3 4))",
         },
         {
@@ -253,13 +260,14 @@ func TestSubstitution(t *testing.T) {
                 "b#1#0": parse("5"),
                 "b#1#1": parse("6"),
             },
+            ellipsis: map[Symbol]int{"a":1, "b":2},
             want:   "((1 2 3) (4 5 6))",
         },
     } {
         // not using any gensyms here
         want := parse(tt.want)
-        templ := analyseTemplate(parse(tt.template), map[Symbol]Symbol{})
-        got := substituteTemplate(templ, tt.substitutions)
+        templ := analyseTemplate(parse(tt.template), map[Symbol]Symbol{}, map[Symbol]int{})
+        got := substituteTemplate(templ, tt.substitutions, tt.ellipsis)
         if !reflect.DeepEqual(got, want) {
             t.Errorf("%d) got %v want %v", i, got, want)
         }
@@ -302,15 +310,22 @@ func TestDefSyntax(t *testing.T) {
             want:  "yes",
         },
         {
-            //TODO: previous test failed because 'list'  inside ellipsis failed to match..
             input: "(define-syntax test-macro (syntax-rules () ((_ (a b ...) ...) (list (b ... a) ...))))",
         },
         {
             input: "(test-macro (1 list 2 3 4) (5 list 6 7))",
             want:  "((2 3 4 1) (6 7 5))",
         },
+        {
+            input: "(define-syntax test-macro (syntax-rules () ((_ (a b ...) ...) (list (list b ...) ...))))",
+        },
+        {
+            input: "(test-macro (1 2 3 4) (5 6 7))",
+            want:  "((2 3 4) (6 7))",
+        },
 	} {
 		p := parse(tt.input)
+        t.Log(p)
 		e := evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {

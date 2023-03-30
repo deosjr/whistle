@@ -86,6 +86,16 @@ var kanren = []string{
          ((_ g) (zzz g))
          ((_ g0 g ...) (disj (zzz g0) (disj+ g ...)))))`,
 
+    `(define-syntax conde
+       (syntax-rules ()
+         ((_ (g0 g ...) ...) (disj+ (conj+ g0 g ...) ...)))) `,
+
+    `(define-syntax fresh
+       (syntax-rules ()
+         ((_ () g0 g ...) (conj+ g0 g ...))
+         ((_ (x0 x ...) g0 g ...)
+          (call/fresh (lambda (x0) (fresh (x ...) g0 g ...)))))) `,
+
 	// length and map are needed in reify
 	"(define length (lambda (x) (if (null? x) 0 (+ 1 (length (cdr x))))))",
 	"(define map (lambda (f x) (if (null? x) x (cons (f (car x)) (map f (cdr x))))))",

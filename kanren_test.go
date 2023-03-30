@@ -326,13 +326,14 @@ func TestKanrenDCG(t *testing.T) {
         },
         {
             // NOTE: alternate clause should have l =!= emptylist I think?
-            input: `(define diflist (lambda (l x dl)
+            // list l is equal to difference list lx/x
+            input: `(define diflist (lambda (l lx x)
                       (conde
-                        [(equalo (quote ()) l) (equalo x dl)]
-                        [(fresh (a d ddl)
+                        [(equalo (quote ()) l) (equalo lx x)]
+                        [(fresh (a d xx)
                            (conso a d l)
-                           (diflist d x ddl)
-                           (conso a ddl dl))])))`,
+                           (diflist d xx x)
+                           (conso a xx lx))])))`,
         },
         {
             input: `(define appendo (lambda (a b c d e f)
@@ -340,8 +341,8 @@ func TestKanrenDCG(t *testing.T) {
         },
         {
             input: `(run* (fresh (q a x b y c z)
-                            (diflist (list 1 2) x a)
-                            (diflist (list 3 4) y b)
+                            (diflist (list 1 2) a x)
+                            (diflist (list 3 4) b y)
                             (equalo z (quote ()))
                             (equalo c q)
                             (appendo a x b y c z)))`,
@@ -350,14 +351,55 @@ func TestKanrenDCG(t *testing.T) {
         {
             // diverges at (run 6) or (run*)
             input: `(run 5 (fresh (q p a x b y c z)
-                            (diflist q x a)
-                            (diflist p y b)
-                            (diflist (list 1 2 3 4) z c)
+                            (diflist q a x)
+                            (diflist p b y)
+                            (diflist (list 1 2 3 4) c z)
                             (equalo z (quote ()))
                             (appendo a x b y c z)))`,
             want: "(() (1) (1 2) (1 2 3) (1 2 3 4))",
         },
         // TODO: build a --> macro or equivalent to play around with macros?
+        // maybe smth like (dcg <head> --> <body> <body> ...) with --> optionally as a literal ?
+        // FIRST ATTEMPT: (head body) where body is a constant
+        // and (head b1 b2 b3 ...) where each b is another dcg function
+        // NOTE: ax and x need gensymming?!
+        {
+            input: `(define-syntax dcg
+                      (syntax-rules ()
+                        ((_ head body)
+                           (define head (lambda (ax x)
+                             (diflist body ax x))))
+                        ((_ head body1 body2 body3 ...)
+                           (define head (lambda (ax x)
+                             (fresh (y)
+                               (body1 ax y)
+                                 (dcg_ y x body2 body3...)))))))`,
+        },
+        // used as an implementation detail for the main dcg macro
+        // NOTE: needs gensymming on fresh vars too?
+        {
+            input: `(define-syntax dcg_
+                      (syntax-rules ()
+                        ((_ prev end b1)
+                           (b1 prev end))
+                        ((_ prev end b1 b2 b3 ...)
+                           (fresh (x) (b1 prev x) (dcg_ x end b2 b3 ...)))))`,
+        },
+        {
+            input: `(define phrase (lambda (dcgbody l)
+                      (fresh (lx x)
+                        (diflist l lx x)
+                        (equalo x (quote ()))
+                        (dcgbody lx x))))`,
+        },
+        {
+            input: "(dcg a (list 1 2 3 4))",
+        },
+        {
+            // diverges beyond 1, but why?
+            input: "(run 1 (fresh (q) (phrase a q)))",
+            want: "((1 2 3 4))",
+        },
     } {
 		p := parse(tt.input)
 		e := evalEnv(env, p)

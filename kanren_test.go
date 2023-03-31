@@ -360,7 +360,7 @@ func TestKanrenDCG(t *testing.T) {
         },
         // TODO: build a --> macro or equivalent to play around with macros?
         // maybe smth like (dcg <head> --> <body> <body> ...) with --> optionally as a literal ?
-        // FIRST ATTEMPT: (head body) where body is a constant
+        // FIRST ATTEMPT: (head body) where body is a list constant
         // and (head b1 b2 b3 ...) where each b is another dcg function
         // NOTE: ax and x need gensymming?!
         {
@@ -427,6 +427,60 @@ func TestKanrenDCG(t *testing.T) {
         {
             input: "(run* (fresh (q) (phrase a q)))",
             want: "((1 2 3 4 5 6 7))",
+        },
+        // NOTE: just found https://staff.fnwi.uva.nl/c.u.grelck/nl-fp-talks/kourzanov.pdf
+        // which does something similar (?) and way more (??)
+        // most importantly tries to solve left-recursion issues going beyond prolog dcg
+
+        // SECOND ATTEMPT: (head body) where body is another dcg function OR a list constant
+        // and (head b1 b2 b3 ...) where each b is another dcg function OR a list constant
+        // NOTE: we cannot define alternatives yet!
+        {
+            input: `(define-syntax dcg
+                      (syntax-rules ()
+                        ((_ head (b ...))
+                           (define head (lambda (ax x)
+                             (diflist (b ...) ax x))))
+                        ((_ head b)
+                           (define head (lambda (ax x)
+                             (b ax x))))
+                        ((_ head (b ...) body1 body2 ...)
+                           (define head (lambda (ax x)
+                             (fresh (y)
+                               (diflist (b ...) ax y)
+                                 (dcg_ y x body1 body2 ...)))))
+                        ((_ head body1 body2 body3 ...)
+                           (define head (lambda (ax x)
+                             (fresh (y)
+                               (body1 ax y)
+                                 (dcg_ y x body2 body3 ...)))))))`,
+        },
+        {
+            // NOTE: fresh (x) replaced by (xx) because we havent fixed gensym yet!
+            // how hygienic is my current syntax-rules implementation really?!
+            input: `(define-syntax dcg_
+                      (syntax-rules ()
+                        ((_ prev end (b ...))
+                           (diflist (b ...) prev end))
+                        ((_ prev end b)
+                            (b prev end))
+                        ((_ prev end (b ...) b2 b3 ...)
+                           (fresh (xx) (diflist (b ...) prev xx) (dcg_ xx end b2 b3 ...)))
+                        ((_ prev end b1 b2 b3 ...)
+                           (fresh (xx) (b1 prev xx) (dcg_ xx end b2 b3 ...)))))`,
+        },
+        {
+            input: "(dcg a b c b)",
+        },
+        {
+            input: "(dcg b c (list 1))",
+        },
+        {
+            input: "(dcg c (list 2))",
+        },
+        {
+            input: "(run* (fresh (q) (phrase a q)))",
+            want: "((2 1 2 2 1))",
         },
     } {
 		p := parse(tt.input)

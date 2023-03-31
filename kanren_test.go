@@ -373,7 +373,7 @@ func TestKanrenDCG(t *testing.T) {
                            (define head (lambda (ax x)
                              (fresh (y)
                                (body1 ax y)
-                                 (dcg_ y x body2 body3...)))))))`,
+                                 (dcg_ y x body2 body3 ...)))))))`,
         },
         // used as an implementation detail for the main dcg macro
         // NOTE: needs gensymming on fresh vars too?
@@ -399,6 +399,34 @@ func TestKanrenDCG(t *testing.T) {
             // diverges beyond 1, but why?
             input: "(run 1 (fresh (q) (phrase a q)))",
             want: "((1 2 3 4))",
+        },
+        {
+            // does _not_ diverge: use of diflist/3 is the problem
+            // possibly because of the missing 'not' in the alternate clause
+            input: "(run* (fresh (q) (a q (quote ()))))",
+            want: "((1 2 3 4))",
+        },
+        {
+            input: `(define phrase (lambda (dcgbody l)
+                      (dcgbody l (quote ()))))`,
+        },
+        {
+            // no longer diverges
+            input: "(run* (fresh (q) (phrase a q)))",
+            want: "((1 2 3 4))",
+        },
+        {
+            input: "(dcg a b c)",
+        },
+        {
+            input: "(dcg b (list 1 2 3 4))",
+        },
+        {
+            input: "(dcg c (list 5 6 7))",
+        },
+        {
+            input: "(run* (fresh (q) (phrase a q)))",
+            want: "((1 2 3 4 5 6 7))",
         },
     } {
 		p := parse(tt.input)

@@ -482,6 +482,45 @@ func TestKanrenDCG(t *testing.T) {
             input: "(run* (fresh (q) (phrase a q)))",
             want: "((2 1 2 2 1))",
         },
+        // THIRD ATTEMPT using alternatives
+        {
+            input: `(define-syntax dcg
+                      (syntax-rules ()
+                        ((_ head (b ...) ...)
+                           (define head (lambda (ax x)
+                             (conde [(dcg_ ax x b ...)] ...))))))`,
+        },
+        {
+            input: `(define-syntax dcg_
+                      (syntax-rules ()
+                        ((_ prev end (b ...))
+                           (diflist (b ...) prev end))
+                        ((_ prev end b)
+                            (b prev end))
+                        ((_ prev end (b ...) b2 b3 ...)
+                           (fresh (xx) (diflist (b ...) prev xx) (dcg_ xx end b2 b3 ...)))
+                        ((_ prev end b1 b2 b3 ...)
+                           (fresh (xx) (b1 prev xx) (dcg_ xx end b2 b3 ...)))))`,
+        },
+        {
+            // now we get to declare alternatives, each in a separate pair
+            // ones --> ( [] ) ; ( [1], ones )
+            input: "(dcg ones ( (list) ) ( (list 1) ones ) )",
+        },
+        {
+            input: "(run 3 (fresh (q) (phrase ones q)))",
+            want: "(() (1) (1 1))",
+        },
+        {
+            // TODO: how to reference variables?
+            input: "(dcg palindrome ( (list) ) ( (list _) ) ( (list e) palindrome (list e) ) )",
+        },
+        {
+            // TODO: takes an argument! uses escapes to apply conso out of dcg context? 
+            // alternatively, maybe we need pattern matching with (a d . rest) here? or quasiquotes
+            // how to distinguish between list and function application (reversal d)?
+            input: "(dcg (reversal l) ( (list) ) ( { (conso a d l) } (reversal d) (list a) ) )",
+        },
     } {
 		p := parse(tt.input)
 		e := evalEnv(env, p)

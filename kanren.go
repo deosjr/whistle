@@ -77,21 +77,21 @@ var kanren = []string{
          ((_ g) (lambda (s/c) (lambda () (g s/c))))))`,
 
     `(define-syntax conj+
-       (syntax-rules ()
+       (syntax-rules (zzz conj)
          ((_ g) (zzz g))
          ((_ g0 g ...) (conj (zzz g0) (conj+ g ...)))))`,
 
     `(define-syntax disj+
-       (syntax-rules ()
+       (syntax-rules (zzz disj)
          ((_ g) (zzz g))
          ((_ g0 g ...) (disj (zzz g0) (disj+ g ...)))))`,
 
     `(define-syntax conde
-       (syntax-rules ()
+       (syntax-rules (disj+ conj+)
          ((_ (g0 g ...) ...) (disj+ (conj+ g0 g ...) ...)))) `,
 
     `(define-syntax fresh
-       (syntax-rules ()
+       (syntax-rules (conj+ call/fresh)
          ((_ () g0 g ...) (conj+ g0 g ...))
          ((_ (x0 x ...) g0 g ...)
           (call/fresh (lambda (x0) (fresh (x ...) g0 g ...)))))) `,

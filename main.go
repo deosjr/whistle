@@ -235,8 +235,11 @@ Loop:
             case "define-syntax":
                 keyword := p.cadr().AsSymbol()
                 transformer := p.caddr().AsPair()
-                macromap[keyword] = syntaxRules(transformer)
+                macromap[keyword] = syntaxRules(keyword, transformer)
 				return NewPrimitive(false)
+            case "macroexpand":
+                expanded, _ := expandMacro(p.cadr().AsPair())
+                return expanded
 			case "lambda":
 				params := p.cadr().AsPair()
 				body := p.caddr()

@@ -32,6 +32,11 @@ func TestAnalysePattern(t *testing.T) {
             want: pattern{isVariable: true, content: parse("a")},
         },
         {
+            pattern: "list",
+            literals: []string{"list"},
+            want: pattern{isLiteral: true, content: parse("list")},
+        },
+        {
             pattern: "(_ a b ...)",
             want: pattern{
                 isList: true,
@@ -62,6 +67,7 @@ func TestAnalysePattern(t *testing.T) {
         got := analysePattern(tt.literals, sp, gensyms, ellipsis)
         // gensyms contains a->hashA lookups. for this test, we can reverse those
         // and check against our wanted pattern which uses non-hashed var names
+        // NOTE: this makes it harder to check gensymmed vs non-gensymmed vars
         revGensym := map[Symbol]Symbol{}
         for k, v := range gensyms {
             revGensym[v] = k
@@ -76,18 +82,27 @@ func TestAnalysePattern(t *testing.T) {
 func TestAnalyseTemplate(t *testing.T) {
 	for i, tt := range []struct {
         template string 
+        literals []string
         gensyms  map[Symbol]Symbol
         ellipsis map[Symbol]int
 		want     pattern
 	} {
         {
             template: "a",
-            gensyms: map[Symbol]Symbol{ "a": "hashA" },
-            want: pattern{isVariable: true, content: parse("a")},
+            gensyms:  map[Symbol]Symbol{ "a": "hashA" },
+            want:     pattern{isVariable: true, content: parse("a")},
+        },
+        {
+            template: "(list a)",
+            literals: []string{"list"},
+            gensyms:  map[Symbol]Symbol{ "a": "hashA" },
+            want:     pattern{isList: true, listContent: []pattern{
+                        {isLiteral: true, content: parse("list")},
+                        {isVariable: true, content: parse("a")}}},
         },
 	} {
         st := parse(tt.template)
-        got := analyseTemplate(st, tt.gensyms, tt.ellipsis)
+        got := analyseTemplate(tt.literals, st, tt.gensyms, tt.ellipsis)
         revGensym := map[Symbol]Symbol{}
         for k, v := range tt.gensyms {
             revGensym[v] = k
@@ -101,9 +116,10 @@ func TestAnalyseTemplate(t *testing.T) {
 
 func TestUnification(t *testing.T) {
 	for i, tt := range []struct {
-		pattern string
-        input   string
-		want    map[Symbol]SExpression
+		pattern  string
+        input    string
+        literals []string
+		want     map[Symbol]SExpression
 	} {
         {
             pattern: "x",
@@ -165,10 +181,16 @@ func TestUnification(t *testing.T) {
                 "b#1#1": parse("6"),
             },
         },
+        {
+            pattern:  "(_ list)",
+            literals: []string{"list"},
+            input:    "(macro list)",
+            want:     map[Symbol]SExpression{},
+        },
     } {
         gensyms := map[Symbol]Symbol{}
         ellipsis := map[Symbol]int{}
-        pp := analysePattern(nil, parse(tt.pattern), gensyms, ellipsis)
+        pp := analysePattern(tt.literals, parse(tt.pattern), gensyms, ellipsis)
         revGensym := map[Symbol]Symbol{}
         for k, v := range gensyms {
             revGensym[v] = k
@@ -195,6 +217,7 @@ func TestUnification(t *testing.T) {
 func TestSubstitution(t *testing.T) {
 	for i, tt := range []struct {
 		template      string
+        literals      []string
 		substitutions map[Symbol]SExpression
         ellipsis      map[Symbol]int
         want          string
@@ -263,10 +286,26 @@ func TestSubstitution(t *testing.T) {
             ellipsis: map[Symbol]int{"a":1, "b":2},
             want:   "((1 2 3) (4 5 6))",
         },
+        {
+            template: "(list x)",
+            literals: []string{"list"},
+            substitutions: map[Symbol]SExpression{
+                "x": parse("42"),
+            },
+            want:   "(list 42)",
+        },
+        /*
+        {
+            template: "(list x)",
+            literals: []string{"list"},
+            substitutions: map[Symbol]SExpression{},
+            want:   "(list gensymX)",
+        },
+        */
     } {
         // not using any gensyms here
         want := parse(tt.want)
-        templ := analyseTemplate(parse(tt.template), map[Symbol]Symbol{}, map[Symbol]int{})
+        templ := analyseTemplate(tt.literals, parse(tt.template), map[Symbol]Symbol{}, map[Symbol]int{})
         got := substituteTemplate(templ, tt.substitutions, tt.ellipsis)
         if !reflect.DeepEqual(got, want) {
             t.Errorf("%d) got %v want %v", i, got, want)
@@ -281,7 +320,7 @@ func TestDefSyntax(t *testing.T) {
 		want  string
 	} {
         {
-            input: "(define-syntax test-macro (syntax-rules () ((_) 1) ((_ v) (cons v 2))))",
+            input: "(define-syntax test-macro (syntax-rules (cons) ((_) 1) ((_ v) (cons v 2))))",
         },
         {
             input: "(test-macro)",
@@ -292,7 +331,7 @@ func TestDefSyntax(t *testing.T) {
             want:  "(1 . 2)",
         },
         {
-            input: "(define-syntax test-macro (syntax-rules () ((_ (a b)) (cons b a))))",
+            input: "(define-syntax test-macro (syntax-rules (cons) ((_ (a b)) (cons b a))))",
         },
         {
             input: "(test-macro (1 2))",
@@ -310,14 +349,14 @@ func TestDefSyntax(t *testing.T) {
             want:  "yes",
         },
         {
-            input: "(define-syntax test-macro (syntax-rules () ((_ (a b ...) ...) (list (b ... a) ...))))",
+            input: "(define-syntax test-macro (syntax-rules (list) ((_ (a b ...) ...) (list (b ... a) ...))))",
         },
         {
             input: "(test-macro (1 list 2 3 4) (5 list 6 7))",
             want:  "((2 3 4 1) (6 7 5))",
         },
         {
-            input: "(define-syntax test-macro (syntax-rules () ((_ (a b ...) ...) (list (list b ...) ...))))",
+            input: "(define-syntax test-macro (syntax-rules (list) ((_ (a b ...) ...) (list (list b ...) ...))))",
         },
         {
             input: "(test-macro (1 2 3 4) (5 6 7))",
@@ -325,7 +364,6 @@ func TestDefSyntax(t *testing.T) {
         },
 	} {
 		p := parse(tt.input)
-        t.Log(p)
 		e := evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {

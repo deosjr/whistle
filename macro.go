@@ -14,14 +14,14 @@ var macromap = map[string]transformer{
     // TODO: needs implementation of literals in macro rules
     "cond": transformer_cond,
     // TODO: needs a 'begin' in lambda because my lambda implementation only takes 1 body
-    "let" : syntaxRules(parse(`(syntax-rules ()
+    "let" : syntaxRules("let", parse(`(syntax-rules ()
                                  ((_ ((var exp) ...) body1 body2 ...)
                                    ((lambda (var ...) (begin body1 body2 ...)) exp ...)))`).AsPair()),
-    "and" : syntaxRules(parse(`(syntax-rules ()
+    "and" : syntaxRules("and", parse(`(syntax-rules ()
                                  ((_) #t)
                                  ((_ e) e)
                                  ((_ e1 e2 e3 ...) (if e1 (and e2 e3 ...) #f)))`).AsPair()),
-    "list": syntaxRules(parse(`(syntax-rules ()
+    "list": syntaxRules("list", parse(`(syntax-rules (cons quote)
                                  ((_) (quote ()))
                                  ((_ a b ...) (cons a (list b ...))))`).AsPair()),
 }
@@ -41,19 +41,27 @@ func expandMacro(p Pair) (SExpression, bool) {
 }
 
 // assuming for now every define-syntax is followed by syntax-rules
-func syntaxRules(sr Pair) transformer {
+// NOTE: in this implementation literals denote 'symbol constants', ie symbols
+// that are not gensymmed. Both in pattern AND in template.
+// Other (proper) option is to evaluate with env, but I'm not getting into that right now.
+func syntaxRules(keyword string, sr Pair) transformer {
     if sr.car().AsSymbol() != "syntax-rules" {
         panic("expected syntax-rules")
     }
-    // TODO: ignoring literals for now
-    literals := []string{} //sr.cadr()
+    literals := []string{keyword, "lambda", "define", "begin", "#t", "#f", "if"}
+    for _, e := range cons2list(sr.cadr().AsPair()) {
+        if !e.IsSymbol() {
+		    panic(fmt.Sprintf("invalid syntax %s", sr))
+        }
+        literals = append(literals, e.AsSymbol())
+    }
     clauses := []clause{}
     for _, c := range cons2list(sr.cddr().AsPair()) {
         cp := c.AsPair()
         s := map[Symbol]Symbol{}
         e := map[Symbol]int{}
         p := analysePattern(literals, cp.car(), s, e)
-        t := analyseTemplate(cp.cadr(), s, e)
+        t := analyseTemplate(literals, cp.cadr(), s, e)
         clauses = append(clauses, clause{pattern:p, template:t, ellipsis:e})
     }
     return func(p Pair) SExpression {
@@ -97,6 +105,11 @@ func analyse(literals []string, p SExpression, gensyms map[Symbol]Symbol, build 
         if sym == underscore {
             return pattern{isUnderscore: true}
         }
+        for _, lit := range literals {
+            if lit == sym {
+                return pattern{isLiteral: true, content: p}
+            }
+        }
         if build {
             newsym := gensym()
             gensyms[sym] = newsym
@@ -133,8 +146,8 @@ func analysePattern(literals []string, p SExpression, gensyms map[Symbol]Symbol,
     return pattern
 }
 
-func analyseTemplate(t SExpression, gensyms map[Symbol]Symbol, ellipsis map[Symbol]int) pattern {
-    pattern := analyse(nil, t, gensyms, false)
+func analyseTemplate(literals []string, t SExpression, gensyms map[Symbol]Symbol, ellipsis map[Symbol]int) pattern {
+    pattern := analyse(literals, t, gensyms, false)
     if !verifyEllipsis(pattern, ellipsis, 0) {
         panic("nonmatching ellipsis")
     }
@@ -205,7 +218,7 @@ func unifyWithEllipsis(p pattern, q SExpression, s map[Symbol]SExpression, depth
     if p.isUnderscore {
         return true
     }
-    if p.isConstant {
+    if p.isConstant || p.isLiteral {
         return reflect.DeepEqual(p.content, q)
     }
     if p.isVariable {
@@ -267,6 +280,9 @@ func substituteTemplateWithEllipsis(template pattern, substitutions map[Symbol]S
     if template.isConstant {
         return template.content, false
     }
+    if template.isLiteral {
+        return template.content, false
+    }
     if template.isVariable {
         ss := template.content.AsSymbol()
         _, isEllipsis := e[ss]
@@ -283,8 +299,18 @@ func substituteTemplateWithEllipsis(template pattern, substitutions map[Symbol]S
             return s, isEllipsis
         }
         // the found variable is an ellipsis var, but we fail to find a repeat match
+        if isEllipsis {
+            return template.content, false
+        }
         // OR the found variable is a pattern var without subsitutions and no ellipsis
-        return template.content, false
+        ss = template.content.AsSymbol()
+        s, ok = substitutions[ss]
+        if ok {
+            return s, false
+        }
+        newsym := NewSymbol(gensym())
+        substitutions[ss] = newsym
+        return newsym, false
     }
     if !template.isList {
         panic("template assumed to be list")

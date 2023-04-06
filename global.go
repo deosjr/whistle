@@ -33,6 +33,7 @@ func GlobalEnv() *Env {
 		"string-append":  builtinFunc(stringappend),
 		"number->string": builtinFunc(number2string),
 		"string->symbol": builtinFunc(string2symbol),
+        "gensym":         builtinFunc(gensymFunc),
 	}, outer: nil}
 }
 
@@ -144,4 +145,8 @@ func number2string(args []SExpression) SExpression {
 
 func string2symbol(args []SExpression) SExpression {
 	return NewSymbol(args[0].AsPrimitive().(string))
+}
+
+func gensymFunc(args []SExpression) SExpression {
+    return NewSymbol(gensym())
 }

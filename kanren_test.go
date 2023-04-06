@@ -362,10 +362,9 @@ func TestKanrenDCG(t *testing.T) {
         // maybe smth like (dcg <head> --> <body> <body> ...) with --> optionally as a literal ?
         // FIRST ATTEMPT: (head body) where body is a list constant
         // and (head b1 b2 b3 ...) where each b is another dcg function
-        // NOTE: ax and x need gensymming?!
         {
             input: `(define-syntax dcg
-                      (syntax-rules ()
+                      (syntax-rules (diflist fresh dcg_)
                         ((_ head body)
                            (define head (lambda (ax x)
                              (diflist body ax x))))
@@ -376,10 +375,9 @@ func TestKanrenDCG(t *testing.T) {
                                  (dcg_ y x body2 body3 ...)))))))`,
         },
         // used as an implementation detail for the main dcg macro
-        // NOTE: needs gensymming on fresh vars too?
         {
             input: `(define-syntax dcg_
-                      (syntax-rules ()
+                      (syntax-rules (fresh)
                         ((_ prev end b1)
                            (b1 prev end))
                         ((_ prev end b1 b2 b3 ...)
@@ -437,7 +435,7 @@ func TestKanrenDCG(t *testing.T) {
         // NOTE: we cannot define alternatives yet!
         {
             input: `(define-syntax dcg
-                      (syntax-rules ()
+                      (syntax-rules (diflist fresh dcg_)
                         ((_ head (b ...))
                            (define head (lambda (ax x)
                              (diflist (b ...) ax x))))
@@ -456,18 +454,19 @@ func TestKanrenDCG(t *testing.T) {
                                  (dcg_ y x body2 body3 ...)))))))`,
         },
         {
-            // NOTE: fresh (x) replaced by (xx) because we havent fixed gensym yet!
             // how hygienic is my current syntax-rules implementation really?!
+            // answer: not very. hygienic macros do a _lot_ more wrt the evaluation env
+            // TODO: use env in macro-expand, allow builtins and gensym free vars
             input: `(define-syntax dcg_
-                      (syntax-rules ()
+                      (syntax-rules (diflist fresh)
                         ((_ prev end (b ...))
                            (diflist (b ...) prev end))
                         ((_ prev end b)
                             (b prev end))
                         ((_ prev end (b ...) b2 b3 ...)
-                           (fresh (xx) (diflist (b ...) prev xx) (dcg_ xx end b2 b3 ...)))
+                           (fresh (x) (diflist (b ...) prev x) (dcg_ x end b2 b3 ...)))
                         ((_ prev end b1 b2 b3 ...)
-                           (fresh (xx) (b1 prev xx) (dcg_ xx end b2 b3 ...)))))`,
+                           (fresh (x) (b1 prev x) (dcg_ x end b2 b3 ...)))))`,
         },
         {
             input: "(dcg a b c b)",
@@ -482,25 +481,20 @@ func TestKanrenDCG(t *testing.T) {
             input: "(run* (fresh (q) (phrase a q)))",
             want: "((2 1 2 2 1))",
         },
+        {
+            input: "(dcg fourlists (list 1) (list 2) (list 3) (list 4))",
+        },
+        {
+            input: "(run 1 (fresh (q) (phrase fourlists q)))",
+            want:  "((1 2 3 4))",
+        },
         // THIRD ATTEMPT using alternatives
         {
             input: `(define-syntax dcg
-                      (syntax-rules ()
+                      (syntax-rules (conde dcg_)
                         ((_ head (b ...) ...)
                            (define head (lambda (ax x)
                              (conde [(dcg_ ax x b ...)] ...))))))`,
-        },
-        {
-            input: `(define-syntax dcg_
-                      (syntax-rules ()
-                        ((_ prev end (b ...))
-                           (diflist (b ...) prev end))
-                        ((_ prev end b)
-                            (b prev end))
-                        ((_ prev end (b ...) b2 b3 ...)
-                           (fresh (xx) (diflist (b ...) prev xx) (dcg_ xx end b2 b3 ...)))
-                        ((_ prev end b1 b2 b3 ...)
-                           (fresh (xx) (b1 prev xx) (dcg_ xx end b2 b3 ...)))))`,
         },
         {
             // now we get to declare alternatives, each in a separate pair
@@ -512,14 +506,89 @@ func TestKanrenDCG(t *testing.T) {
             want: "(() (1) (1 1))",
         },
         {
-            // TODO: how to reference variables?
-            input: "(dcg palindrome ( (list) ) ( (list _) ) ( (list e) palindrome (list e) ) )",
+            input: "(dcg threelists ( (list 1) (list 2) (list 3)) )",
         },
         {
-            // TODO: takes an argument! uses escapes to apply conso out of dcg context? 
-            // alternatively, maybe we need pattern matching with (a d . rest) here? or quasiquotes
-            // how to distinguish between list and function application (reversal d)?
-            input: "(dcg (reversal l) ( (list) ) ( { (conso a d l) } (reversal d) (list a) ) )",
+            input: "(run 1 (fresh (q) (phrase threelists q)))",
+            want:  "((1 2 3))",
+        },
+        // FOURTH ATTEMPT including mandatory fresh variable declaration 
+        // TODO: (e) should be (vars ...), but ellipsis nesting check is a problem here
+        {
+            input: `(define-syntax dcg
+                      (syntax-rules (conde fresh dcg_)
+                        ((_ head (e) (b ...) ...)
+                           (define head (lambda (ax x)
+                             (conde [(fresh (e) (dcg_ ax x b ...))] ...)))))))`,
+        },
+        {
+            input: `(dcg palindrome (e)
+                      ((list))
+                      ((list e))
+                      ((list e) palindrome (list e)))`,
+        },
+        {
+            input: "(run 9 (fresh (q) (phrase palindrome q)))",
+            want: "(() (_.0) (_.0 _.0) (_.0 _.1 _.0) (_.0 _.1 _.1 _.0) (_.0 _.1 _.2 _.1 _.0) (_.0 _.1 _.2 _.2 _.1 _.0) (_.0 _.1 _.2 _.3 _.2 _.1 _.0) (_.0 _.1 _.2 _.3 _.3 _.2 _.1 _.0))",
+        },
+        // FIFTH ATTEMPT includes escaping dcg context for normal goal execution
+        {
+            input: `(define-syntax dcg_
+                      (syntax-rules (diflist fresh escape conj+)
+                        ((_ prev end (b ...))
+                           (diflist (b ...) prev end))
+                        ((_ prev end b)
+                            (b prev end))
+                        ((_ prev end (escape g ...) b2 b3 ...)
+                           (conj+ g ... (dcg_ prev end b2 b3 ...)))
+                        ((_ prev end (b ...) b2 b3 ...)
+                           (fresh (x) (diflist (b ...) prev x) (dcg_ x end b2 b3 ...)))
+                        ((_ prev end b1 b2 b3 ...)
+                           (fresh (x) (b1 prev x) (dcg_ x end b2 b3 ...)))))`,
+        },
+        {
+            input: `(dcg palindrome (e)
+                      ((list))
+                      ((escape (disj (equalo e 1) (equalo e 2))) (list e))
+                      ((escape (disj (equalo e 1) (equalo e 2))) (list e) palindrome (list e)))`,
+        },
+        {
+            input: "(run 9 (fresh (q) (phrase palindrome q)))",
+            want: "(() (1) (2) (1 1) (2 2) (1 1 1) (2 1 2) (1 2 1) (2 2 2))",
+        },
+        {
+        // SIXTH ATTEMPT: taking arguments and using 'list' only for explicit lists 
+        // TODO: (arg) should be (args ...) and (u v) should be (vars ...), but ellipsis nesting check is a problem here
+            input: `(define-syntax dcg
+                      (syntax-rules (conde fresh dcg_)
+                        ((_ head (arg) (u v) (b ...) ...)
+                           (define head (lambda (arg ax x)
+                             (conde [(fresh (u v) (dcg_ ax x b ...))] ...)))))))`,
+        },
+        {
+            input: `(define-syntax dcg_
+                      (syntax-rules (diflist fresh escape conj+ list)
+                        ((_ prev end (list b ...))
+                           (diflist (list b ...) prev end))
+                        ((_ prev end (b ...))
+                            (b ... prev end))
+                        ((_ prev end (escape g ...) b2 b3 ...)
+                           (conj+ g ... (dcg_ prev end b2 b3 ...)))
+                        ((_ prev end (list b ...) b2 b3 ...)
+                           (fresh (x) (diflist (list b ...) prev x) (dcg_ x end b2 b3 ...)))
+                        ((_ prev end (b ...) b2 b3 ...)
+                           (fresh (x) (b ... prev x) (dcg_ x end b2 b3 ...)))))`,
+        },
+        {
+            input: `(dcg reversal (l) (a d)
+                      ((escape (equalo l (quote ()))) (list))
+                      ((escape (conso a d l)) (reversal d) (list a)))`,
+        },
+        {
+            // TODO: phrase with dcgbody taking args
+            // NOTE: right now run* diverges
+            input: "(run 1 (fresh (q r) (equalo r (list 1 2 3 4)) (reversal q r (quote ()))))",
+            want:  "((4 3 2 1))",
         },
     } {
 		p := parse(tt.input)

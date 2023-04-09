@@ -24,6 +24,10 @@ var macromap = map[string]transformer{
     "list": syntaxRules("list", parse(`(syntax-rules (cons quote)
                                  ((_) (quote ()))
                                  ((_ a b ...) (cons a (list b ...))))`).AsPair()),
+    "quasiquote": syntaxRules("quasiquote", parse(`(syntax-rules (unquote cons)
+                                 ((_ (unquote d)) d)
+                                 ((_ (d1 d2 ...)) (cons (quasiquote d1) (quasiquote (d2 ...))))
+                                 ((_ d) (quote d)))`).AsPair()),
 }
 
 type transformer = func(Pair) SExpression
@@ -48,7 +52,7 @@ func syntaxRules(keyword string, sr Pair) transformer {
     if sr.car().AsSymbol() != "syntax-rules" {
         panic("expected syntax-rules")
     }
-    literals := []string{keyword, "lambda", "define", "begin", "#t", "#f", "if"}
+    literals := []string{keyword, "lambda", "define", "begin", "#t", "#f", "if", "quote"}
     for _, e := range cons2list(sr.cadr().AsPair()) {
         if !e.IsSymbol() {
 		    panic(fmt.Sprintf("invalid syntax %s", sr))

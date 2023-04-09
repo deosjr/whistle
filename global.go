@@ -34,6 +34,7 @@ func GlobalEnv() *Env {
 		"number->string": builtinFunc(number2string),
 		"string->symbol": builtinFunc(string2symbol),
         "gensym":         builtinFunc(gensymFunc),
+        "eval":           builtinFunc(eval),
 	}, outer: nil}
 }
 
@@ -46,43 +47,43 @@ func builtinFunc(f BuiltinProc) Proc {
 	}
 }
 
-func add(args []SExpression) SExpression {
+func add(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() + args[1].AsNumber())
 }
 
-func sub(args []SExpression) SExpression {
+func sub(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() - args[1].AsNumber())
 }
 
-func mul(args []SExpression) SExpression {
+func mul(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() * args[1].AsNumber())
 }
 
-func eq(args []SExpression) SExpression {
+func eq(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() == args[1].AsNumber())
 }
 
-func lt(args []SExpression) SExpression {
+func lt(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() < args[1].AsNumber())
 }
 
-func gt(args []SExpression) SExpression {
+func gt(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() > args[1].AsNumber())
 }
 
-func leq(args []SExpression) SExpression {
+func leq(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() <= args[1].AsNumber())
 }
 
-func geq(args []SExpression) SExpression {
+func geq(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].AsNumber() >= args[1].AsNumber())
 }
 
-func isnumber(args []SExpression) SExpression {
+func isnumber(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].IsNumber())
 }
 
-func ispair(args []SExpression) SExpression {
+func ispair(env *Env, args []SExpression) SExpression {
 	x := args[0]
 	if !x.IsPair() {
 		return NewPrimitive(false)
@@ -90,19 +91,19 @@ func ispair(args []SExpression) SExpression {
 	return NewPrimitive(x.AsPair() != empty)
 }
 
-func car(args []SExpression) SExpression {
+func car(env *Env, args []SExpression) SExpression {
 	return args[0].AsPair().car()
 }
 
-func cdr(args []SExpression) SExpression {
+func cdr(env *Env, args []SExpression) SExpression {
 	return args[0].AsPair().cdr()
 }
 
-func cons(args []SExpression) SExpression {
+func cons(env *Env, args []SExpression) SExpression {
 	return NewPair(args[0], args[1])
 }
 
-func isnull(args []SExpression) SExpression {
+func isnull(env *Env, args []SExpression) SExpression {
 	x := args[0]
 	if x.IsProcedure() {
 		return NewPrimitive(false)
@@ -113,25 +114,25 @@ func isnull(args []SExpression) SExpression {
 	return NewPrimitive(x.AsPair() == empty)
 }
 
-func isprocedure(args []SExpression) SExpression {
+func isprocedure(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(args[0].IsProcedure())
 }
 
-func isequivalent(args []SExpression) SExpression {
+func isequivalent(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(reflect.DeepEqual(args[0], args[1]))
 }
 
-func display(args []SExpression) SExpression {
+func display(env *Env, args []SExpression) SExpression {
 	fmt.Print(args[0])
 	return NewPrimitive(true)
 }
 
-func exit(args []SExpression) SExpression {
+func exit(env *Env, args []SExpression) SExpression {
 	os.Exit(0)
 	return nil
 }
 
-func stringappend(args []SExpression) SExpression {
+func stringappend(env *Env, args []SExpression) SExpression {
 	s := ""
 	for _, arg := range args {
 		s += arg.AsPrimitive().(string)
@@ -139,14 +140,18 @@ func stringappend(args []SExpression) SExpression {
 	return NewPrimitive(s)
 }
 
-func number2string(args []SExpression) SExpression {
+func number2string(env *Env, args []SExpression) SExpression {
 	return NewPrimitive(fmt.Sprintf("%v", args[0].AsNumber()))
 }
 
-func string2symbol(args []SExpression) SExpression {
+func string2symbol(env *Env, args []SExpression) SExpression {
 	return NewSymbol(args[0].AsPrimitive().(string))
 }
 
-func gensymFunc(args []SExpression) SExpression {
+func gensymFunc(env *Env, args []SExpression) SExpression {
     return NewSymbol(gensym())
+}
+
+func eval(env *Env, args []SExpression) SExpression {
+    return evalEnv(env, args[0])
 }

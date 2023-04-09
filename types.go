@@ -275,7 +275,7 @@ type DefinedProc struct {
 	env    *Env
 }
 
-type BuiltinProc = func([]SExpression) SExpression
+type BuiltinProc = func(*Env, []SExpression) SExpression
 
 func boolean(e SExpression) bool {
 	return e.AsAtom().value.(bool)

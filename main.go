@@ -13,6 +13,7 @@ import (
 // REPL
 func main() {
 	env := GlobalEnv()
+    loadErlang(env)
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
@@ -147,12 +148,12 @@ type Env struct {
 	outer *Env
 }
 
-func (e Env) find(s Symbol) Env {
+func (e *Env) find(s Symbol) (*Env, bool) {
 	if _, ok := e.dict[s]; ok {
-		return e
+		return e, true
 	}
 	if e.outer == nil {
-		panic(fmt.Sprintf("Exception: variable %s is not bound", s))
+        return nil, false
 	}
 	return e.outer.find(s)
 }
@@ -187,7 +188,11 @@ Loop:
 		}
 		if e.IsAtom() {
 			if e.IsSymbol() {
-				return env.find(e.AsSymbol()).dict[e.AsSymbol()]
+				ed, ok := env.find(e.AsSymbol())
+                if !ok {
+		            panic(fmt.Sprintf("Exception: variable %s is not bound", e.AsSymbol()))
+                }
+                return ed.dict[e.AsSymbol()]
 			}
 			// primitive
 			return e
@@ -247,7 +252,7 @@ Loop:
 					value: DefinedProc{
 						params: params,
 						body:   body,
-						env:    env,
+                        env:    env,
 					},
 				}}
 			// default: falls through to procedure call
@@ -259,17 +264,38 @@ Loop:
 			panic(fmt.Sprintf("Exception: attempt to apply non-procedure %s", e))
 		}
 		proc := e.AsProcedure()
-		args := []SExpression{}
-		cdr := p.cdr().AsPair()
-		for cdr != empty {
-			args = append(args, evalEnv(env, cdr.car()))
-			cdr = cdr.cdr().AsPair()
-		}
-		if proc.isBuiltin {
-			return proc.builtin()(args)
-		}
-		defproc := proc.defined()
-		e = defproc.body
-		env = newEnv(defproc.params, args, defproc.env)
+        env, e = evalProcedureFromPair(env, proc, p.cdr().AsPair())
+        if proc.isBuiltin {
+            return e
+        }
 	}
+}
+
+func evalProcedureFromPair(env *Env, proc Proc, pargs Pair) (*Env, SExpression) {
+    args := []SExpression{}
+    for pargs != empty {
+        args = append(args, pargs.car())
+        pargs = pargs.cdr().AsPair()
+    }
+    return evalProcedure(env, proc, args...)
+}
+
+func evalProcedure(env *Env, proc Proc, args ...SExpression) (*Env, SExpression) {
+    for i, arg := range args {
+        args[i] = evalEnv(env, arg)
+    }
+	if proc.isBuiltin {
+		return env, proc.builtin()(env, args)
+	}
+	defproc := proc.defined()
+    // TODO: erlang hack. lambda closures overwrite pid in env
+    // because they save env in which function was declared
+    // solution: find a better hack than sending pid over env
+    d, ok := defproc.env.find("$PID")
+    if ok {
+        ed, _ := env.find("$PID")
+        d.dict["$PID"] = ed.dict["$PID"]
+    }
+    // end hack
+	return newEnv(defproc.params, args, defproc.env), defproc.body
 }

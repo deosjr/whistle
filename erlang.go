@@ -18,7 +18,7 @@ var processmap map[string]chan SExpression
 
 func loadErlang(env *Env) {
     processmap = make(map[string]chan SExpression)
-    pid := pid()
+    pid := pidFunc()
     processmap[pid] = make(chan SExpression, 1000)
     env.dict["$PID"]  = NewSymbol(pid)
     env.dict["self"]  = builtinFunc(self)
@@ -39,7 +39,9 @@ func loadErlang(env *Env) {
     macromap["receive_"]  = syntaxRules("receive_", parse(receive2).AsPair())
 }
 
-func pid() string {
+var pidFunc func() string = generatePid
+
+func generatePid() string {
     return "<pid" + fmt.Sprint(rand.Intn(9999999999)) + ">"
 }
 
@@ -52,7 +54,7 @@ func self(env *Env, args []SExpression) SExpression {
 func spawn(env *Env, args []SExpression) SExpression {
     // erlang uses async message passing, which we can emulate using buffered channels
     // NOTE: choice of 1000 is completely arbitrary
-    pid := pid()
+    pid := pidFunc()
     processmap[pid] = make(chan SExpression, 1000)
     e := copyEnv(env)
     d, _ := e.find("$PID")

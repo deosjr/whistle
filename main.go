@@ -11,6 +11,8 @@ import (
 )
 
 // REPL
+// TODO: this should just start a process which executes the function
+// (loop (print (eval (read))))
 func main() {
 	env := GlobalEnv()
     loadErlang(env)

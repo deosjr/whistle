@@ -5,8 +5,8 @@ package main
 
 var kanren = []string{
 	// instead of using vector, we just use ('var x) pairs for vars
-	"(define var (lambda (c) (cons (quote var) c)))",
-	"(define var? (lambda (x) (and (pair? x) (eqv? (car x) (quote var)))))",
+	"(define var (lambda (c) (cons 'var c)))",
+	"(define var? (lambda (x) (and (pair? x) (eqv? (car x) 'var))))",
 	"(define var=? (lambda (x y) (= (cdr x) (cdr y))))",
 
 	// walk needs assp, but only cares about true/false

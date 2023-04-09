@@ -35,6 +35,7 @@ func GlobalEnv() *Env {
 		"string->symbol": builtinFunc(string2symbol),
         "gensym":         builtinFunc(gensymFunc),
         "eval":           builtinFunc(eval),
+        "read":           builtinFunc(read),
 	}, outer: nil}
 }
 
@@ -154,4 +155,8 @@ func gensymFunc(env *Env, args []SExpression) SExpression {
 
 func eval(env *Env, args []SExpression) SExpression {
     return evalEnv(env, args[0])
+}
+
+func read(env *Env, args []SExpression) SExpression {
+    return parse(args[0].AsPrimitive().(string))
 }

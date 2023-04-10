@@ -3,30 +3,22 @@ package main
 // http://norvig.com/lispy.html
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 )
 
-// REPL
-// TODO: this should just start a process which executes the function
-// (loop (print (eval (read))))
 func main() {
 	env := GlobalEnv()
     loadErlang(env)
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("> ")
-		scanner.Scan()
-		t := parse(scanner.Text())
-		e := evalEnv(env, t)
-		s := e.String()
-		if s != "" {
-			fmt.Println(s)
-		}
-	}
+    // TODO: reintroduces extra newline after define
+    repl := parse(`(define REPL (lambda (env)
+        (begin (display "> ")
+               (display (eval (read) env))
+               (display newline)
+               (REPL env))))`)
+    evalEnv(env, repl)
+    evalEnv(env, parse("(REPL (environment))"))
 }
 
 func parse(program string) SExpression {
@@ -40,7 +32,31 @@ func tokenize(s string) []string {
 	s = strings.ReplaceAll(s, "]", ")")
 	s = strings.ReplaceAll(s, "(", " ( ")
 	s = strings.ReplaceAll(s, ")", " ) ")
-	return strings.Fields(s)
+    tokenized := []string{}
+    fields := strings.Fields(s)
+    // pasting string escaped stuff back together..
+    str := ""
+    for i:=0; i<len(fields);i++ {
+        ss := fields[i]
+        if len(str) == 0 && strings.HasPrefix(ss, `"`) {
+            if len(ss) > 1 && strings.HasSuffix(ss, `"`) {
+                tokenized = append(tokenized, ss)
+                continue
+            }
+            str = ss
+            continue
+        }
+        if len(str) > 0 {
+            str += " " + ss
+            if strings.HasSuffix(ss, `"`) {
+                tokenized = append(tokenized, str)
+                str = ""
+            }
+            continue
+        }
+        tokenized = append(tokenized, ss)
+    }
+	return tokenized
 }
 
 func readFromTokens(tokens []string) (SExpression, []string) {
@@ -77,6 +93,11 @@ func atom(token string) SExpression {
 	if token[0] == token[len(token)-1] && token[0] == '"' {
 		return NewPrimitive(token[1 : len(token)-1])
 	}
+    // TODO unquote syntax only works on symbols, not lists atm!
+    if token[0] == ',' {
+        unquote, _ := readFromTokens([]string{"(", "unquote", token[1:], ")"})
+        return unquote
+    }
     // TODO quote syntax only works on symbols, not lists atm!
     if token[0] == '\'' {
         quote, _ := readFromTokens([]string{"(", "quote", token[1:], ")"})

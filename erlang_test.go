@@ -57,7 +57,7 @@ func TestErlangReceiveMacro(t *testing.T) {
             input: "(define msg (quote ('sender 'atom)))",
         },
         {
-            input: "(run 1 (fresh (from q) (equalo q (quasiquote ((unquote from) 'atom))) (equalo q msg)))",
+            input: "(run 1 (fresh (from q) (equalo q (quasiquote (,from 'atom))) (equalo q msg)))",
             want:  "((quote sender))",
         },
         {
@@ -78,7 +78,7 @@ func TestErlangReceiveMacro(t *testing.T) {
             input: `(define pid (let ((this (self)))
                       (spawn (lambda ()
                         (receive
-                          (from (quasiquote ((unquote from) 'request)) (send this (quasiquote ((unquote from) 'response))))
+                          (from (quasiquote (,from 'request)) (send this (quasiquote (,from 'response))))
                         ))
                       (quote ()))))`,
         },
@@ -87,7 +87,7 @@ func TestErlangReceiveMacro(t *testing.T) {
             want:  "((quote sender) (quote request))",
         },
         {
-            input: "(receive (x (quasiquote ((unquote x) 'response)) x))",
+            input: "(receive (x (quasiquote (,x 'response)) x))",
             want:  "(quote sender)",
         },
     } {

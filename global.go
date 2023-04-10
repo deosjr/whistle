@@ -1,6 +1,7 @@
 package main
 
 import (
+    "bufio"
 	"fmt"
 	"math"
 	"os"
@@ -20,6 +21,7 @@ func GlobalEnv() *Env {
 		"#t":             NewPrimitive(true),
 		"#f":             NewPrimitive(false),
 		"pi":             NewPrimitive(math.Pi),
+        "newline":        NewPrimitive("\n"),
 		"number?":        builtinFunc(isnumber),
 		"pair?":          builtinFunc(ispair),
 		"car":            builtinFunc(car),
@@ -36,6 +38,8 @@ func GlobalEnv() *Env {
         "gensym":         builtinFunc(gensymFunc),
         "eval":           builtinFunc(eval),
         "read":           builtinFunc(read),
+        "read-string":    builtinFunc(readString),
+        "environment":    builtinFunc(environment),
 	}, outer: nil}
 }
 
@@ -153,10 +157,24 @@ func gensymFunc(env *Env, args []SExpression) SExpression {
     return NewSymbol(gensym())
 }
 
+// (eval expression [env]), defaults to env=env
 func eval(env *Env, args []SExpression) SExpression {
-    return evalEnv(env, args[0])
+    if len(args) == 1 {
+        return evalEnv(env, args[0])
+    }
+    return evalEnv(args[1].AsPrimitive().(*Env), args[0])
 }
 
 func read(env *Env, args []SExpression) SExpression {
+    scanner := bufio.NewScanner(os.Stdin)
+    scanner.Scan()
+    return parse(scanner.Text())
+}
+
+func readString(env *Env, args []SExpression) SExpression {
     return parse(args[0].AsPrimitive().(string))
+}
+
+func environment(env *Env, args []SExpression) SExpression {
+    return NewPrimitive(env)
 }

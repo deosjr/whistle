@@ -314,6 +314,7 @@ func TestSubstitution(t *testing.T) {
 }
 
 func TestDefSyntax(t *testing.T) {
+    main := newProcess()
 	env := GlobalEnv()
 	for i, tt := range []struct {
 		input string
@@ -364,7 +365,7 @@ func TestDefSyntax(t *testing.T) {
         },
 	} {
 		p := parse(tt.input)
-		e := evalEnv(env, p)
+		e := main.evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

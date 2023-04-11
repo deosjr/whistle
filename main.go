@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+    p := newProcess()
 	env := GlobalEnv()
     loadErlang(env)
     // TODO: reintroduces extra newline after define
@@ -17,8 +18,9 @@ func main() {
                (display (eval (read) env))
                (display newline)
                (REPL env))))`)
-    evalEnv(env, repl)
-    evalEnv(env, parse("(REPL (environment))"))
+    p.evalEnv(env, repl)
+    spawn(p, env, []SExpression{parse("(REPL (environment))"), parse("(quote ())")})
+    for { } // await repl termination
 }
 
 func parse(program string) SExpression {
@@ -164,161 +166,4 @@ func syntaxCheck(list []SExpression) {
 			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
 		}
 	}
-}
-
-type Env struct {
-	dict  map[Symbol]SExpression
-	outer *Env
-}
-
-func (e *Env) find(s Symbol) (*Env, bool) {
-	if _, ok := e.dict[s]; ok {
-		return e, true
-	}
-	if e.outer == nil {
-        return nil, false
-	}
-	return e.outer.find(s)
-}
-
-func newEnv(params Pair, args []SExpression, outer *Env) *Env {
-	m := map[Symbol]SExpression{}
-	i := 0
-	for params != empty {
-		m[params.car().AsSymbol()] = args[i]
-		params = params.cdr().AsPair()
-		i++
-	}
-	return &Env{dict: m, outer: outer}
-}
-
-func evalEnv(env *Env, e SExpression) SExpression {
-	if e.IsProcedure() {
-		// e is a proc, evaluate returns itself
-		return e
-	}
-Loop:
-	for {
-		if e.IsPair() {
-            if e.AsPair() == empty {
-                panic("invalid syntax ()")
-            }
-			ex, ok := expandMacro(e.AsPair())
-            if ok {
-                e = ex
-                continue Loop
-            }
-		}
-		if e.IsAtom() {
-			if e.IsSymbol() {
-				ed, ok := env.find(e.AsSymbol())
-                if !ok {
-		            panic(fmt.Sprintf("Exception: variable %s is not bound", e.AsSymbol()))
-                }
-                return ed.dict[e.AsSymbol()]
-			}
-			// primitive
-			return e
-		}
-		// list, at which point car should be one of two things:
-		// smth evaluating to procedure, or one of a few builtin symbols (which mark builtin procedures)
-		p := e.AsPair()
-		car := p.car()
-		if car.IsSymbol() {
-			s := car.AsSymbol()
-			// builtin funcs that arent like other builtins:
-			// they rely on their args not being evaluated first
-			// their syntactic forms are checked at read-time
-			switch s {
-			case "if":
-				test := p.cadr()
-				conseq := p.caddr()
-				tested := evalEnv(env, test)
-				if isTruthy(tested) {
-					e = conseq
-					continue Loop
-				}
-				if p.cdddr().AsPair() == empty {
-					e = NewPrimitive(false)
-					continue Loop
-				}
-				alt := p.cadddr()
-				e = alt
-				continue Loop
-			case "begin":
-				args := p.cdr().AsPair()
-				for args.cdr().AsPair() != empty {
-					evalEnv(env, args.car())
-					args = args.cdr().AsPair()
-				}
-				e = args.car()
-				continue Loop
-			case "quote":
-				return p.cadr()
-			case "define":
-				sym := p.cadr().AsSymbol()
-				exp := p.caddr()
-				env.dict[sym] = evalEnv(env, exp)
-				return NewPrimitive(false)
-            case "define-syntax":
-                keyword := p.cadr().AsSymbol()
-                transformer := p.caddr().AsPair()
-                macromap[keyword] = syntaxRules(keyword, transformer)
-				return NewPrimitive(false)
-            case "macroexpand":
-                expanded, _ := expandMacro(p.cadr().AsPair())
-                return expanded
-			case "lambda":
-				params := p.cadr().AsPair()
-				body := p.caddr()
-				return Proc{sexpression: sexpression{
-					value: DefinedProc{
-						params: params,
-						body:   body,
-                        env:    env,
-					},
-				}}
-			// default: falls through to procedure call
-			}
-		}
-		// procedure call
-		e = evalEnv(env, car)
-		if !e.IsProcedure() {
-			panic(fmt.Sprintf("Exception: attempt to apply non-procedure %s", e))
-		}
-		proc := e.AsProcedure()
-        env, e = evalProcedureFromPair(env, proc, p.cdr().AsPair())
-        if proc.isBuiltin {
-            return e
-        }
-	}
-}
-
-func evalProcedureFromPair(env *Env, proc Proc, pargs Pair) (*Env, SExpression) {
-    args := []SExpression{}
-    for pargs != empty {
-        args = append(args, pargs.car())
-        pargs = pargs.cdr().AsPair()
-    }
-    return evalProcedure(env, proc, args...)
-}
-
-func evalProcedure(env *Env, proc Proc, args ...SExpression) (*Env, SExpression) {
-    for i, arg := range args {
-        args[i] = evalEnv(env, arg)
-    }
-	if proc.isBuiltin {
-		return env, proc.builtin()(env, args)
-	}
-	defproc := proc.defined()
-    // TODO: erlang hack. lambda closures overwrite pid in env
-    // because they save env in which function was declared
-    // solution: find a better hack than sending pid over env
-    d, ok := defproc.env.find("$PID")
-    if ok {
-        ed, _ := env.find("$PID")
-        d.dict["$PID"] = ed.dict["$PID"]
-    }
-    // end hack
-	return newEnv(defproc.params, args, defproc.env), defproc.body
 }

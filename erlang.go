@@ -9,18 +9,34 @@ import (
 // adding concurrency to our LISP based on actor model of Erlang,
 // but implemented using Golang's CSP (which is different!)
 
-// For this first attempt we will spawn each process with a copy of the env
-// in which the process was spawned, and using '$PID' in env to store pid
+// For this second attempt we will spawn each process with a copy of the env
+// in which the process was spawned, and storing '$PID' on the process struct
 
-var processmap map[string]chan SExpression
+type process struct {
+    pid string
+    mailbox chan SExpression
+    // TODO: rand seed, etc
+}
+
+func newProcess() process {
+    // erlang uses async message passing, which we can emulate using buffered channels
+    // TODO: message box stores messages, matching starts over each time?
+    // NOTE: choice of 1000 is completely arbitrary
+    p := process{
+        pid: pidFunc(),
+        mailbox: make(chan SExpression, 1000),
+    }
+    processmap[p.pid] = p.mailbox
+    return p
+}
+
+var processmap = make(map[string]chan SExpression)
 
 // self/0, spawn/3, send/2, receive_msg/0, receive as macro, flush/0
 
 func loadErlang(env *Env) {
-    processmap = make(map[string]chan SExpression)
     pid := pidFunc()
     processmap[pid] = make(chan SExpression, 1000)
-    env.dict["$PID"]  = NewSymbol(pid)
     env.dict["self"]  = builtinFunc(self)
     env.dict["spawn"] = builtinFunc(spawn)
     env.dict["send"]  = builtinFunc(send)
@@ -45,44 +61,36 @@ func generatePid() string {
     return "<pid" + fmt.Sprint(rand.Intn(9999999999)) + ">"
 }
 
-func self(env *Env, args []SExpression) SExpression {
-    e, _ := env.find("$PID")
-    return e.dict["$PID"]
+func self(p process, env *Env, args []SExpression) SExpression {
+    return NewPrimitive(p.pid)
 }
 
 // (spawn module function (args ...))
-func spawn(env *Env, args []SExpression) SExpression {
-    // erlang uses async message passing, which we can emulate using buffered channels
-    // NOTE: choice of 1000 is completely arbitrary
-    pid := pidFunc()
-    processmap[pid] = make(chan SExpression, 1000)
+// TODO: module argument not implemented right now
+func spawn(spawning process, env *Env, args []SExpression) SExpression {
+    p := newProcess()
     e := copyEnv(env)
-    d, _ := e.find("$PID")
-    d.dict["$PID"] = NewSymbol(pid)
-    go evalEnv(e, NewPair(args[0], args[1]))
-    return NewSymbol(pid)
+    go p.evalEnv(e, NewPair(args[0], args[1]))
+    return NewPrimitive(p.pid)
 }
 
 // (send to msg)
-func send(env *Env, args []SExpression) SExpression {
-    ch := processmap[args[0].AsSymbol()]
+func send(p process, env *Env, args []SExpression) SExpression {
+    ch := processmap[args[0].AsPrimitive().(string)]
     ch <- args[1]
     return args[1]
 }
 
 // receive_msg is the builtin func that actually receives a msg from a channel
-func receive(env *Env, args []SExpression) SExpression {
-    pid := self(env, args).AsSymbol()
-    return <-processmap[pid]
+func receive(p process, env *Env, args []SExpression) SExpression {
+    return <-processmap[p.pid]
 }
 
-func flush(env *Env, args []SExpression) SExpression {
-    pid := self(env, args).AsSymbol()
-    ch := processmap[pid]
+func flush(p process, env *Env, args []SExpression) SExpression {
     for {
         select {
-        case msg := <-ch:
-            fmt.Printf("%s got %s\n", pid, msg)
+        case msg := <-p.mailbox:
+            fmt.Printf("%s got %s\n", p.pid, msg)
         default:
             return NewPrimitive(true)
         }

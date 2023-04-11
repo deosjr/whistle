@@ -11,9 +11,10 @@ func TestErlangReceiveMacro(t *testing.T) {
         pidi++
         return fmt.Sprintf("<%02d>", pidi)
     }
+    main := newProcess()
 	env := GlobalEnv()
 	loadErlang(env)
-    loadKanren(env) // for pattern matching in receive
+    loadKanren(main, env) // for pattern matching in receive
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -62,25 +63,32 @@ func TestErlangReceiveMacro(t *testing.T) {
         },
         {
             input: `(define-syntax receive (syntax-rules (let receive_msg receive_)
-                      ((_ (var pattern expression) ...)
-                       (let ((msg (receive_msg))) (receive_ msg (var pattern expression) ...)))))`,
+                      ((_ (var pattern expression ...) ...)
+                       (let ((msg (receive_msg))) (receive_ msg (var pattern expression ...) ...)))))`,
         },
         {
             input: `(define-syntax receive_ (syntax-rules (eqv? let run fresh equalo car null?)
                       ((_ _) #f)
-                      ((_ msg (var pattern expression) b ...)
-                       (let ((match (run 1 (fresh (var q) (equalo q pattern) (equalo q msg)))))
+                      ((_ msg (var pattern expression ...) b ...)
+                       (let ((match (run 1 (fresh (var q) (equalo q pattern) guard ... (equalo q msg)))))
                          (if (null? match)
                            (receive_ msg b ...)
-                           (let ((var (car match))) expression))))))`,
+                           (let ((var (car match))) expression ...))))))`,
+        },
+        {
+            input: `(define rec (lambda (sender)
+                        (receive
+                          (from (quasiquote (,from 'request))
+                            (send sender (quasiquote (,from 'response)))
+                            (rec sender))
+                          (x x
+                            (send sender (quasiquote (('unknown ,x) 'response)))
+                            (rec sender))
+                        )))`,
         },
         {
             input: `(define pid (let ((this (self)))
-                      (spawn (lambda ()
-                        (receive
-                          (from (quasiquote (,from 'request)) (send this (quasiquote (,from 'response))))
-                        ))
-                      (quote ()))))`,
+                      (spawn rec (quasiquote (,this)))))`,
         },
         {
             input: "(send pid (quote ('sender 'request)))",
@@ -90,9 +98,18 @@ func TestErlangReceiveMacro(t *testing.T) {
             input: "(receive (x (quasiquote (,x 'response)) x))",
             want:  "(quote sender)",
         },
+        {
+            input: "(send pid 'wrongmessage)",
+            want:  "wrongmessage",
+        },
+        {
+            input: "(receive (x (quasiquote (,x 'response)) x))",
+            want:  "((quote unknown) wrongmessage)",
+        },
+        // TODO: 'when' guards are simply minikanren statements to inject in run!
     } {
         p := parse(tt.input)
-        e := evalEnv(env, p)
+        e := main.evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

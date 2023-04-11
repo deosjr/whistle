@@ -6,8 +6,9 @@ import (
 
 // examples taken from the paper
 func TestKanren(t *testing.T) {
+    main := newProcess()
 	env := GlobalEnv()
-	loadKanren(env)
+	loadKanren(main, env)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -45,7 +46,7 @@ func TestKanren(t *testing.T) {
 		},
 	} {
 		p := parse(tt.input)
-		e := evalEnv(env, p)
+		e := main.evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -55,8 +56,9 @@ func TestKanren(t *testing.T) {
 
 // mostly documenting simpler behaviour so I can refer back to it while studying
 func TestLearnKanren(t *testing.T) {
+    main := newProcess()
 	env := GlobalEnv()
-	loadKanren(env)
+	loadKanren(main, env)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -306,7 +308,7 @@ func TestLearnKanren(t *testing.T) {
         // Neumerkel/Kral (2016) - Indexing dif/2
 	} {
 		p := parse(tt.input)
-		e := evalEnv(env, p)
+		e := main.evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -315,8 +317,9 @@ func TestLearnKanren(t *testing.T) {
 }
 
 func TestKanrenDCG(t *testing.T) {
+    main := newProcess()
 	env := GlobalEnv()
-	loadKanren(env)
+	loadKanren(main, env)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -592,7 +595,7 @@ func TestKanrenDCG(t *testing.T) {
         },
     } {
 		p := parse(tt.input)
-		e := evalEnv(env, p)
+		e := main.evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

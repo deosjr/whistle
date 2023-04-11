@@ -130,8 +130,8 @@ var kanren = []string{
 	"(define run* (lambda (g) (mK-reify (take-all (call/empty-state g)))))",
 }
 
-func loadKanren(env *Env) {
+func loadKanren(p process, env *Env) {
 	for _, def := range kanren {
-		evalEnv(env, parse(def))
+		p.evalEnv(env, parse(def))
 	}
 }

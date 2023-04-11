@@ -35,8 +35,6 @@ var processmap = make(map[string]chan SExpression)
 // self/0, spawn/3, send/2, receive_msg/0, receive as macro, flush/0
 
 func loadErlang(env *Env) {
-    pid := pidFunc()
-    processmap[pid] = make(chan SExpression, 1000)
     env.dict["self"]  = builtinFunc(self)
     env.dict["spawn"] = builtinFunc(spawn)
     env.dict["send"]  = builtinFunc(send)

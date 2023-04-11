@@ -70,7 +70,7 @@ func TestErlangReceiveMacro(t *testing.T) {
             input: `(define-syntax receive_ (syntax-rules (eqv? let run fresh equalo car null?)
                       ((_ _) #f)
                       ((_ msg (var pattern expression ...) b ...)
-                       (let ((match (run 1 (fresh (var q) (equalo q pattern) guard ... (equalo q msg)))))
+                       (let ((match (run 1 (fresh (var q) (equalo q pattern) (equalo q msg)))))
                          (if (null? match)
                            (receive_ msg b ...)
                            (let ((var (car match))) expression ...))))))`,
@@ -106,7 +106,54 @@ func TestErlangReceiveMacro(t *testing.T) {
             input: "(receive (x (quasiquote (,x 'response)) x))",
             want:  "((quote unknown) wrongmessage)",
         },
-        // TODO: 'when' guards are simply minikanren statements to inject in run!
+        // THIRD ATTEMPT: 'when' guards are simply minikanren statements to inject in run!
+        {
+            input: "(define msg (quote (3 'atom)))",
+        },
+        {
+            input: "(run 1 (fresh (prio q) (equalo q (quasiquote (,prio 'atom))) (equalo q msg) (equalo prio 3)))",
+            want:  "(3)",
+        },
+        {
+            input: `(define-syntax receive (syntax-rules (let receive_msg receive_)
+                      ((_ (var pattern expression ...) ...)
+                       (let ((msg (receive_msg))) (receive_ msg (var pattern expression ...) ...)))))`,
+        },
+        {
+            input: `(define-syntax receive_ (syntax-rules (eqv? let run fresh equalo car null? -> when)
+                      ((_ _) #f)
+                      ((_ msg (var pattern (when guard) ... -> expression ...) b ...)
+                       (let ((match (run 1 (fresh (var q) (equalo q pattern) (equalo q msg) guard ...))))
+                         (if (null? match)
+                           (receive_ msg b ...)
+                           (let ((var (car match))) expression ...))))))`,
+        },
+        {
+            input: `(define rec_with_prio (lambda (sender)
+                        (receive
+                          (priority (quasiquote (,priority 'request)) (when (equalo priority 1)) ->
+                            (send sender (quote ('high 'response)))
+                            (rec_with_prio sender))
+                          (priority (quasiquote (,priority 'request)) (when (equalo priority 2)) ->
+                            (send sender (quote ('normal 'response)))
+                            (rec_with_prio sender))
+                          (priority (quasiquote (,priority 'request)) (when (equalo priority 3)) ->
+                            (send sender (quote ('low 'response)))
+                            (rec_with_prio sender))
+                        )))`,
+        },
+        {
+            input: `(define pid (let ((this (self)))
+                      (spawn rec_with_prio (quasiquote (,this)))))`,
+        },
+        {
+            input: "(send pid (quote (2 'request)))",
+            want:  "(2 (quote request))",
+        },
+        {
+            input: "(receive (x (quasiquote (,x 'response)) -> x))",
+            want:  "(quote normal)",
+        },
     } {
         p := parse(tt.input)
         e := main.evalEnv(env, p)

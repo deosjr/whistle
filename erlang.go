@@ -4,6 +4,7 @@ import (
     "fmt"
     "math/rand"
     "sync"
+    "time"
 )
 
 // https://learnyousomeerlang.com/the-hitchhikers-guide-to-concurrency
@@ -46,13 +47,18 @@ func loadErlang(env *Env) {
     env.dict["send"]  = builtinFunc(send)
     env.dict["flush"] = builtinFunc(flush)
     env.dict["receive_builtin"] = builtinFunc(receive)
-    macromap["receive"] = syntaxRules("receive", parse(`(syntax-rules (receive_builtin receive_)
-        ((_ clause ...) (receive_builtin (receive_ clause) ...)))`).AsPair())
+    macromap["receive"] = syntaxRules("receive", parse(`(syntax-rules (receive_builtin receive_ after ->)
+        ((_ ((v ...) rest ... ) ... (after millis -> expression ...))
+         (receive_builtin (quote (after millis expression ...)) (receive_ (v ...) rest ...) ...))
+        ((_ ((v ...) rest ... ) ...)
+         (receive_builtin (receive_ (v ...) rest ...) ...)))`).AsPair())
     macromap["receive_"] = syntaxRules("receive_", parse(`(syntax-rules (when -> run fresh equalo)
-        ((_ ((vars ...) pattern -> expression ...))
-         (quasiquote ((vars ...) (unquote (lambda (msg) (run 1 (fresh (vars ... q) (equalo q pattern) (equalo q msg) )))) expression ...)))
-        ((_ ((vars ...) pattern (when guard ...) -> expression ...))
-         (quasiquote ((vars ...) (unquote (lambda (msg) (run 1 (fresh (vars ... q) (equalo q pattern) (equalo q msg) guard ...)))) expression ...))))`).AsPair())
+        ((_ (vars ...) pattern -> expression ...)
+         (quasiquote ((vars ...) (unquote (lambda (msg)
+           (run 1 (fresh (q vars ...) (equalo q (quasiquote ((unquote vars) ...))) (equalo msg pattern) )))) expression ...)))
+        ((_ (vars ...) pattern (when guard ...) -> expression ...)
+         (quasiquote ((vars ...) (unquote (lambda (msg)
+           (run 1 (fresh (q vars ...) (equalo q (quasiquote ((unquote vars) ...))) (equalo msg pattern) guard ...)))) expression ...))))`).AsPair())
 }
 
 var pidFunc func() string = generatePid
@@ -87,9 +93,19 @@ type receiveClause struct {
     body Pair
 }
 
-// (receive ((vars ...) pattern [(when guard ...)] -> expression ... ) ... [(after duration -> expression ...)])
+// (receive ((vars ...) pattern [(when guard ...)] -> expression ... ) ... [(after duration expression ...)])
 func receive(p *process, env *Env, args []SExpression) SExpression {
-    // TODO: after
+    first := args[0].AsPair()
+    var after time.Duration
+    expires := false
+    var afterBody Pair
+    start := time.Now()
+    if first.car().IsSymbol() && first.car().AsSymbol() == "after" {
+        after = time.Millisecond * time.Duration(first.cadr().AsNumber())
+        expires = true
+        afterBody = first.cddr().AsPair()
+        args = args[1:]
+    }
     clauses := []receiveClause{}
     for _, arg := range args {
         parg := arg.AsPair()
@@ -102,15 +118,21 @@ func receive(p *process, env *Env, args []SExpression) SExpression {
     for {
         if len(p.mailbox) == 0 {
             // TODO: hot loop :(
+            if expires && time.Now().Sub(start) > after {
+                p.Lock()
+                p.mailbox = append(seen, p.mailbox...)
+                p.Unlock()
+                return p.evalEnv(env, NewPair(NewSymbol("begin"), afterBody))
+            }
             continue
         }
         var msg SExpression
         p.Lock()
         msg, p.mailbox = p.mailbox[0], p.mailbox[1:]
         p.Unlock()
-        msg = list2cons(NewSymbol("quote"), msg)
+        qmsg := list2cons(NewSymbol("quote"), msg)
         for _, clause := range clauses {
-            match := p.evalEnv(env, list2cons(clause.lambdaMsg, msg)).AsPair()
+            match := p.evalEnv(env, list2cons(clause.lambdaMsg, qmsg)).AsPair()
             if match == empty {
                 continue
             }
@@ -120,7 +142,7 @@ func receive(p *process, env *Env, args []SExpression) SExpression {
             // execute clause.body matching vars!
             // (let (zip vars match) body ...)
             zip := make([]SExpression, len(clause.vars))
-            for i, m := range cons2list(match) {
+            for i, m := range cons2list(match.car().AsPair()) {
                 zip[i] = list2cons(clause.vars[i], list2cons(NewSymbol("quote"), m))
             }
             let := NewPair(NewSymbol("let"), NewPair(list2cons(zip...), clause.body))

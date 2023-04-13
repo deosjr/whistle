@@ -5,6 +5,7 @@ import (
     "testing"
 )
 
+// https://learnyousomeerlang.com/more-on-multiprocessing
 func TestErlangReceiveMacro(t *testing.T) {
     pidi := 0
     pidFunc = func() string {
@@ -24,22 +25,22 @@ func TestErlangReceiveMacro(t *testing.T) {
             want:  "<01>",
         },
         {
-            input: `(define rec_with_prio (lambda (sender)
+            input: `(define rec (lambda (sender)
                         (receive
                           ((priority) (quasiquote (,priority 'request)) (when (equalo priority 1)) ->
                             (send sender (quote ('high 'response)))
-                            (rec_with_prio sender))
+                            (rec sender))
                           ((priority) (quasiquote (,priority 'request)) (when (equalo priority 2)) ->
                             (send sender (quote ('normal 'response)))
-                            (rec_with_prio sender))
+                            (rec sender))
                           ((priority) (quasiquote (,priority 'request)) (when (equalo priority 3)) ->
                             (send sender (quote ('low 'response)))
-                            (rec_with_prio sender))
+                            (rec sender))
                         )))`,
         },
         {
             input: `(define pid (let ((this (self)))
-                      (spawn rec_with_prio (quasiquote (,this)))))`,
+                      (spawn rec (quasiquote (,this)))))`,
         },
         {
             // doesnt match anything, ignored in mailbox!
@@ -54,9 +55,30 @@ func TestErlangReceiveMacro(t *testing.T) {
             input: "(receive ((x) (quasiquote (,x 'response)) -> x))",
             want:  "(quote normal)",
         },
+        {
+            input: `(define important (lambda ()
+                      (receive 
+                        ((priority message) (quasiquote (,priority ,message)) (when (equalo priority 1)) ->
+                          (cons message (important)))
+                        (after 0 -> (normal)))))`,
+        },
+        {
+            input: `(define normal (lambda ()
+                      (receive 
+                        ((priority message) (quasiquote (,priority ,message)) (when (equalo priority 3)) ->
+                          (cons message (normal)))
+                        (after 0 -> (quote ()) )))))`,
+        },
+        {
+            input: "(begin (send (self) (quote (1 high))) (send (self) (quote (3 low))) (send (self) (quote (3 low))) (send (self) (quote (1 high))))",
+            want:  "(1 high)",
+        },
+        {
+            input: "(important)",
+            want:  "(high high low low)",
+        },
     } {
         p := parse(tt.input)
-        fmt.Println(p)
         e := main.evalEnv(env, p)
 		got := e.String()
 		if got != tt.want {

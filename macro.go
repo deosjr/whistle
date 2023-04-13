@@ -52,7 +52,7 @@ func syntaxRules(keyword string, sr Pair) transformer {
     if sr.car().AsSymbol() != "syntax-rules" {
         panic("expected syntax-rules")
     }
-    literals := []string{keyword, "lambda", "define", "begin", "#t", "#f", "if", "quote"}
+    literals := []string{keyword, "lambda", "define", "begin", "#t", "#f", "if", "quote", "quasiquote", "unquote"}
     for _, e := range cons2list(sr.cadr().AsPair()) {
         if !e.IsSymbol() {
 		    panic(fmt.Sprintf("invalid syntax %s", sr))

@@ -39,7 +39,7 @@ func newEnv(params Pair, args []SExpression, outer *Env) *Env {
 	return &Env{dict: m, outer: outer}
 }
 
-func (p process) evalEnv(env *Env, e SExpression) SExpression {
+func (p *process) evalEnv(env *Env, e SExpression) SExpression {
 	if e.IsProcedure() {
 		// e is a proc, evaluate returns itself
 		return e
@@ -141,7 +141,8 @@ Loop:
 	}
 }
 
-func (p process) evalProcedureFromPair(env *Env, proc Proc, pargs Pair) (*Env, SExpression) {
+// TODO: this isnt actually useful rn, still need to call evalEnv anyways
+func (p *process) evalProcedureFromPair(env *Env, proc Proc, pargs Pair) (*Env, SExpression) {
     args := []SExpression{}
     for pargs != empty {
         args = append(args, pargs.car())
@@ -150,7 +151,7 @@ func (p process) evalProcedureFromPair(env *Env, proc Proc, pargs Pair) (*Env, S
     return p.evalProcedure(env, proc, args...)
 }
 
-func (p process) evalProcedure(env *Env, proc Proc, args ...SExpression) (*Env, SExpression) {
+func (p *process) evalProcedure(env *Env, proc Proc, args ...SExpression) (*Env, SExpression) {
     for i, arg := range args {
         args[i] = p.evalEnv(env, arg)
     }

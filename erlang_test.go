@@ -14,8 +14,8 @@ func TestErlangReceiveMacro(t *testing.T) {
     }
     main := newProcess()
 	env := GlobalEnv()
-	loadErlang(env)
-    loadKanren(main, env) // for pattern matching in receive
+	loadErlang(main, env)
+    loadKanren(main, env)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -78,8 +78,14 @@ func TestErlangReceiveMacro(t *testing.T) {
             want:  "(high high low low)",
         },
     } {
-        p := parse(tt.input)
-        e := main.evalEnv(env, p)
+        p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+        e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

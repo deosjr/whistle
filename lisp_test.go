@@ -120,8 +120,14 @@ func TestLisp(t *testing.T) {
 			want:  "(1 1 . 2)",
 		},
 	} {
-		p := parse(tt.input)
-		e := main.evalEnv(env, p)
+        p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+        e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -153,8 +159,14 @@ func TestTailRecursion(t *testing.T) {
 			want:  "500000500000",
 		},
 	} {
-		p := parse(tt.input)
-		e := main.evalEnv(env, p)
+        p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+        e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

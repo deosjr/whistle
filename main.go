@@ -11,22 +11,31 @@ import (
 func main() {
     p := newProcess()
 	env := GlobalEnv()
-    loadErlang(env)
+    loadKanren(p, env)
+    loadErlang(p, env)
     // TODO: reintroduces extra newline after define
-    repl := parse(`(define REPL (lambda (env)
+    repl := mustParse(`(define REPL (lambda (env)
         (begin (display "> ")
                (display (eval (read) env))
                (display newline)
                (REPL env))))`)
     p.evalEnv(env, repl)
-    spawn(p, env, []SExpression{parse("(REPL (environment))"), parse("(quote ())")})
-    for { } // await repl termination
+    spawnLink(p, env, []SExpression{mustParse("(REPL (environment))"), mustParse("(quote ())")})
+    for p.err == nil { } // await repl termination
 }
 
-func parse(program string) SExpression {
+func mustParse(program string) SExpression {
+    p, err := parse(program)
+    if err != nil {
+        panic(err)
+    }
+    return p
+}
+
+func parse(program string) (SExpression, error) {
 	s := tokenize(program)
 	p, _ := readFromTokens(s)
-	return p
+	return p, nil // TODO!
 }
 
 func tokenize(s string) []string {
@@ -91,7 +100,6 @@ func atom(token string) SExpression {
 	if n, err := strconv.ParseFloat(token, 64); err == nil {
 		return NewPrimitive(n)
 	}
-	// TODO: strings cant have spaces in them atm!
 	if token[0] == token[len(token)-1] && token[0] == '"' {
 		return NewPrimitive(token[1 : len(token)-1])
 	}
@@ -110,7 +118,8 @@ func atom(token string) SExpression {
 
 // check syntactic form of some builtins
 // so we don't encounter weirdness at runtime
-// TODO: how does this work with macros?
+// TODO: how does this work with macros? -> currently it doesn't
+// would take applying macros actually at read time to make this work
 func syntaxCheck(list []SExpression) {
 	if len(list) == 0 {
 		return

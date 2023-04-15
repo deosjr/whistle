@@ -132,6 +132,6 @@ var kanren = []string{
 
 func loadKanren(p *process, env *Env) {
 	for _, def := range kanren {
-		p.evalEnv(env, parse(def))
+		p.evalEnv(env, mustParse(def))
 	}
 }

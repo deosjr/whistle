@@ -45,8 +45,14 @@ func TestKanren(t *testing.T) {
 			want:  "(5 6 5 6)",
 		},
 	} {
-		p := parse(tt.input)
-		e := main.evalEnv(env, p)
+		p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+		e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -307,8 +313,14 @@ func TestLearnKanren(t *testing.T) {
         // I want to get to pure ifte but would need disequality constraints first
         // Neumerkel/Kral (2016) - Indexing dif/2
 	} {
-		p := parse(tt.input)
-		e := main.evalEnv(env, p)
+		p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+		e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -594,8 +606,14 @@ func TestKanrenDCG(t *testing.T) {
             want:  "((4 3 2 1))",
         },
     } {
-		p := parse(tt.input)
-		e := main.evalEnv(env, p)
+		p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+		e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

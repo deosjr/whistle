@@ -18,6 +18,7 @@ type process struct {
     sync.Mutex
     pid string
     mailbox []SExpression
+    err   error
     // TODO: rand seed, etc
 }
 
@@ -26,39 +27,60 @@ func newProcess() *process {
         pid: pidFunc(),
     }
     ch := make(chan SExpression)
-    processmap[p.pid] = ch
+    mailboxes[p.pid] = ch
+    errch := make(chan error)
+    errchannels[p.pid] = errch
+    processlinks[p.pid] = map[string]struct{}{}
     go func() {
-        for msg := range ch {
-            p.Lock()
-            p.mailbox = append(p.mailbox, msg)
-            p.Unlock()
+        for {
+            select {
+            case msg := <-ch:
+                p.Lock()
+                p.mailbox = append(p.mailbox, msg)
+                p.Unlock()
+            case err := <-errch:
+                p.err = err
+                for link := range processlinks[p.pid] {
+                    errchannels[link] <- err
+                }
+                return
+            }
         }
     }()
     return p
 }
 
-var processmap = make(map[string]chan SExpression)
+var mailboxes = make(map[string]chan SExpression)
+var errchannels = make(map[string]chan error)
+var processlinks = make(map[string]map[string]struct{})
 
-// self/0, spawn/3, send/2, receive/*, flush/0
-
-func loadErlang(env *Env) {
+func loadErlang(p *process, env *Env) {
     env.dict["self"]  = builtinFunc(self)
     env.dict["spawn"] = builtinFunc(spawn)
     env.dict["send"]  = builtinFunc(send)
-    env.dict["flush"] = builtinFunc(flush)
+    env.dict["link"]  = builtinFunc(link)
+    env.dict["spawn_link"] = builtinFunc(spawnLink)
+    env.dict["unlink"] = builtinFunc(unlink)
+    // receive as 2 macros AND a function call...
     env.dict["receive_builtin"] = builtinFunc(receive)
-    macromap["receive"] = syntaxRules("receive", parse(`(syntax-rules (receive_builtin receive_ after ->)
+    macromap["receive"] = syntaxRules("receive", mustParse(`(syntax-rules (receive_builtin receive_ after ->)
         ((_ ((v ...) rest ... ) ... (after millis -> expression ...))
          (receive_builtin (quote (after millis expression ...)) (receive_ (v ...) rest ...) ...))
         ((_ ((v ...) rest ... ) ...)
          (receive_builtin (receive_ (v ...) rest ...) ...)))`).AsPair())
-    macromap["receive_"] = syntaxRules("receive_", parse(`(syntax-rules (when -> run fresh equalo)
+    macromap["receive_"] = syntaxRules("receive_", mustParse(`(syntax-rules (when -> run fresh equalo)
         ((_ (vars ...) pattern -> expression ...)
          (quasiquote ((vars ...) (unquote (lambda (msg)
            (run 1 (fresh (q vars ...) (equalo q (quasiquote ((unquote vars) ...))) (equalo msg pattern) )))) expression ...)))
         ((_ (vars ...) pattern (when guard ...) -> expression ...)
          (quasiquote ((vars ...) (unquote (lambda (msg)
            (run 1 (fresh (q vars ...) (equalo q (quasiquote ((unquote vars) ...))) (equalo msg pattern) guard ...)))) expression ...))))`).AsPair())
+
+    // these "builtins" can be defined in code now
+    p.evalEnv(env, mustParse(`(define flush (lambda () (receive ((x) x ->
+        (display (self)) (display " got ") (display x) (display newline) (flush))
+        (after 0 -> #t))))`))
+    p.evalEnv(env, mustParse("(define sleep (lambda (t) (receive (after t -> #t))))"))
 }
 
 var pidFunc func() string = generatePid
@@ -67,24 +89,48 @@ func generatePid() string {
     return "<pid" + fmt.Sprint(rand.Intn(9999999999)) + ">"
 }
 
-func self(p *process, env *Env, args []SExpression) SExpression {
-    return NewPrimitive(p.pid)
+func self(p *process, env *Env, args []SExpression) (SExpression, error) {
+    return NewPrimitive(p.pid), nil
 }
 
 // (spawn module function (args ...))
 // TODO: module argument not implemented right now
-func spawn(spawning *process, env *Env, args []SExpression) SExpression {
+func spawn(spawning *process, env *Env, args []SExpression) (SExpression, error) {
     p := newProcess()
     e := copyEnv(env)
-    go p.evalEnv(e, NewPair(args[0], args[1]))
-    return NewPrimitive(p.pid)
+    go eval(p, e, []SExpression{NewPair(args[0], args[1])})
+    return NewPrimitive(p.pid), nil
+}
+
+func link(p *process, env *Env, args []SExpression) (SExpression, error) {
+    other := args[0].AsPrimitive().(string)
+    processlinks[p.pid][other] = struct{}{}
+    processlinks[other][p.pid] = struct{}{}
+    return NewPrimitive(true), nil
+}
+
+func spawnLink(spawning *process, env *Env, args []SExpression) (SExpression, error) {
+    // link before even kicking off the process so we are sure to be updated
+    p := newProcess()
+    e := copyEnv(env)
+    processlinks[spawning.pid][p.pid] = struct{}{}
+    processlinks[p.pid][spawning.pid] = struct{}{}
+    go eval(p, e, []SExpression{NewPair(args[0], args[1])})
+    return NewPrimitive(p.pid), nil
+}
+
+func unlink(p *process, env *Env, args []SExpression) (SExpression, error) {
+    other := args[0].AsPrimitive().(string)
+    delete(processlinks[p.pid], other)
+    delete(processlinks[other], p.pid)
+    return NewPrimitive(true), nil
 }
 
 // (send to msg)
-func send(p *process, env *Env, args []SExpression) SExpression {
-    ch := processmap[args[0].AsPrimitive().(string)]
+func send(p *process, env *Env, args []SExpression) (SExpression, error) {
+    ch := mailboxes[args[0].AsPrimitive().(string)]
     ch <- args[1]
-    return args[1]
+    return args[1], nil
 }
 
 type receiveClause struct {
@@ -94,14 +140,18 @@ type receiveClause struct {
 }
 
 // (receive ((vars ...) pattern [(when guard ...)] -> expression ... ) ... [(after duration expression ...)])
-func receive(p *process, env *Env, args []SExpression) SExpression {
+func receive(p *process, env *Env, args []SExpression) (SExpression, error) {
     first := args[0].AsPair()
     var after time.Duration
     expires := false
     var afterBody Pair
     start := time.Now()
     if first.car().IsSymbol() && first.car().AsSymbol() == "after" {
-        after = time.Millisecond * time.Duration(first.cadr().AsNumber())
+        evalDuration, err := p.evalEnv(env, first.cadr())
+        if err != nil {
+            return nil, err
+        }
+        after = time.Millisecond * time.Duration(evalDuration.AsNumber())
         expires = true
         afterBody = first.cddr().AsPair()
         args = args[1:]
@@ -132,7 +182,11 @@ func receive(p *process, env *Env, args []SExpression) SExpression {
         p.Unlock()
         qmsg := list2cons(NewSymbol("quote"), msg)
         for _, clause := range clauses {
-            match := p.evalEnv(env, list2cons(clause.lambdaMsg, qmsg)).AsPair()
+            pmatch, err := p.evalEnv(env, list2cons(clause.lambdaMsg, qmsg))
+            match := pmatch.AsPair()
+            if err != nil {
+                return nil, err
+            }
             if match == empty {
                 continue
             }
@@ -150,17 +204,6 @@ func receive(p *process, env *Env, args []SExpression) SExpression {
         }
         seen = append(seen, msg)
     }
-}
-
-func flush(p *process, env *Env, args []SExpression) SExpression {
-    p.Lock()
-    mailbox := p.mailbox
-    p.mailbox = []SExpression{}
-    p.Unlock()
-    for _, msg := range mailbox {
-        fmt.Printf("%s got %s\n", p.pid, msg)
-    }
-    return NewPrimitive(true)
 }
 
 func copyEnv(env *Env) *Env {

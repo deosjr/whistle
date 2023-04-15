@@ -52,129 +52,137 @@ func builtinFunc(f BuiltinProc) Proc {
 	}
 }
 
-func add(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() + args[1].AsNumber())
+func add(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() + args[1].AsNumber()), nil
 }
 
-func sub(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() - args[1].AsNumber())
+func sub(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() - args[1].AsNumber()), nil
 }
 
-func mul(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() * args[1].AsNumber())
+func mul(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() * args[1].AsNumber()), nil
 }
 
-func eq(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() == args[1].AsNumber())
+func eq(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() == args[1].AsNumber()), nil
 }
 
-func lt(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() < args[1].AsNumber())
+func lt(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() < args[1].AsNumber()), nil
 }
 
-func gt(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() > args[1].AsNumber())
+func gt(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() > args[1].AsNumber()), nil
 }
 
-func leq(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() <= args[1].AsNumber())
+func leq(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() <= args[1].AsNumber()), nil
 }
 
-func geq(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].AsNumber() >= args[1].AsNumber())
+func geq(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() >= args[1].AsNumber()), nil
 }
 
-func isnumber(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].IsNumber())
+func isnumber(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].IsNumber()), nil
 }
 
-func ispair(p *process, env *Env, args []SExpression) SExpression {
+func ispair(p *process, env *Env, args []SExpression) (SExpression, error) {
 	x := args[0]
 	if !x.IsPair() {
-		return NewPrimitive(false)
+		return NewPrimitive(false), nil
 	}
-	return NewPrimitive(x.AsPair() != empty)
+	return NewPrimitive(x.AsPair() != empty), nil
 }
 
-func car(p *process, env *Env, args []SExpression) SExpression {
-	return args[0].AsPair().car()
+func car(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return args[0].AsPair().car(), nil
 }
 
-func cdr(p *process, env *Env, args []SExpression) SExpression {
-	return args[0].AsPair().cdr()
+func cdr(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return args[0].AsPair().cdr(), nil
 }
 
-func cons(p *process, env *Env, args []SExpression) SExpression {
-	return NewPair(args[0], args[1])
+func cons(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPair(args[0], args[1]), nil
 }
 
-func isnull(p *process, env *Env, args []SExpression) SExpression {
+func isnull(p *process, env *Env, args []SExpression) (SExpression, error) {
 	x := args[0]
 	if x.IsProcedure() {
-		return NewPrimitive(false)
+		return NewPrimitive(false), nil
 	}
 	if x.IsAtom() {
-		return NewPrimitive(false)
+		return NewPrimitive(false), nil
 	}
-	return NewPrimitive(x.AsPair() == empty)
+	return NewPrimitive(x.AsPair() == empty), nil
 }
 
-func isprocedure(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(args[0].IsProcedure())
+func isprocedure(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].IsProcedure()), nil
 }
 
-func isequivalent(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(reflect.DeepEqual(args[0], args[1]))
+func isequivalent(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(reflect.DeepEqual(args[0], args[1])), nil
 }
 
-func display(p *process, env *Env, args []SExpression) SExpression {
+func display(p *process, env *Env, args []SExpression) (SExpression, error) {
 	fmt.Print(args[0])
-	return NewPrimitive(true)
+	return NewPrimitive(true), nil
 }
 
-func exit(p *process, env *Env, args []SExpression) SExpression {
+func exit(p *process, env *Env, args []SExpression) (SExpression, error) {
 	os.Exit(0)
-	return nil
+	return nil, nil
 }
 
-func stringappend(p *process, env *Env, args []SExpression) SExpression {
+func stringappend(p *process, env *Env, args []SExpression) (SExpression, error) {
 	s := ""
 	for _, arg := range args {
 		s += arg.AsPrimitive().(string)
 	}
-	return NewPrimitive(s)
+	return NewPrimitive(s), nil
 }
 
-func number2string(p *process, env *Env, args []SExpression) SExpression {
-	return NewPrimitive(fmt.Sprintf("%v", args[0].AsNumber()))
+func number2string(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(fmt.Sprintf("%v", args[0].AsNumber())), nil
 }
 
-func string2symbol(p *process, env *Env, args []SExpression) SExpression {
-	return NewSymbol(args[0].AsPrimitive().(string))
+func string2symbol(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewSymbol(args[0].AsPrimitive().(string)), nil
 }
 
-func gensymFunc(p *process, env *Env, args []SExpression) SExpression {
-    return NewSymbol(gensym())
+func gensymFunc(p *process, env *Env, args []SExpression) (SExpression, error) {
+    return NewSymbol(gensym()), nil
 }
 
 // (eval expression [env]), defaults to env=env
-func eval(p *process, env *Env, args []SExpression) SExpression {
-    if len(args) == 1 {
-        return p.evalEnv(env, args[0])
+func eval(p *process, env *Env, args []SExpression) (SExpression, error) {
+    if len(args) > 1 {
+        env = args[1].AsPrimitive().(*Env)    
     }
-    return p.evalEnv(args[1].AsPrimitive().(*Env), args[0])
+    e, err := p.evalEnv(env, args[0])
+    if err != nil {
+        // TODO chez scheme uses error continuations
+        // need to figure out what I want to do here exactly
+        fmt.Println(err)
+        errchannels[p.pid] <- err
+        return nil, err
+    }
+    return e, nil
 }
 
-func read(p *process, env *Env, args []SExpression) SExpression {
+func read(p *process, env *Env, args []SExpression) (SExpression, error) {
     scanner := bufio.NewScanner(os.Stdin)
     scanner.Scan()
     return parse(scanner.Text())
 }
 
-func readString(p *process, env *Env, args []SExpression) SExpression {
+func readString(p *process, env *Env, args []SExpression) (SExpression, error) {
     return parse(args[0].AsPrimitive().(string))
 }
 
-func environment(p *process, env *Env, args []SExpression) SExpression {
-    return NewPrimitive(env)
+func environment(p *process, env *Env, args []SExpression) (SExpression, error) {
+    return NewPrimitive(env), nil
 }

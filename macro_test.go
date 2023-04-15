@@ -29,12 +29,12 @@ func TestAnalysePattern(t *testing.T) {
 	} {
         {
             pattern: "a",
-            want: pattern{isVariable: true, content: parse("a")},
+            want: pattern{isVariable: true, content: mustParse("a")},
         },
         {
             pattern: "list",
             literals: []string{"list"},
-            want: pattern{isLiteral: true, content: parse("list")},
+            want: pattern{isLiteral: true, content: mustParse("list")},
         },
         {
             pattern: "(_ a b ...)",
@@ -42,8 +42,8 @@ func TestAnalysePattern(t *testing.T) {
                 isList: true,
                 listContent: []pattern{
                     {isUnderscore: true},
-                    {isVariable: true, content: parse("a")},
-                    {isVariable: true, hasEllipsis: true, content: parse("b")},
+                    {isVariable: true, content: mustParse("a")},
+                    {isVariable: true, hasEllipsis: true, content: mustParse("b")},
                 },
             },
         },
@@ -54,14 +54,14 @@ func TestAnalysePattern(t *testing.T) {
                 listContent: []pattern{
                     {isUnderscore: true},
                     {isList: true, listContent: []pattern{
-                        {isVariable: true, content: parse("a")},
-                        {isVariable: true, hasEllipsis: true, content: parse("b")}},
+                        {isVariable: true, content: mustParse("a")},
+                        {isVariable: true, hasEllipsis: true, content: mustParse("b")}},
                     hasEllipsis: true},
                 },
             },
         },
     } {
-        sp := parse(tt.pattern)
+        sp := mustParse(tt.pattern)
         gensyms := map[Symbol]Symbol{}
         ellipsis := map[Symbol]int{}
         got := analysePattern(tt.literals, sp, gensyms, ellipsis)
@@ -90,18 +90,18 @@ func TestAnalyseTemplate(t *testing.T) {
         {
             template: "a",
             gensyms:  map[Symbol]Symbol{ "a": "hashA" },
-            want:     pattern{isVariable: true, content: parse("a")},
+            want:     pattern{isVariable: true, content: mustParse("a")},
         },
         {
             template: "(list a)",
             literals: []string{"list"},
             gensyms:  map[Symbol]Symbol{ "a": "hashA" },
             want:     pattern{isList: true, listContent: []pattern{
-                        {isLiteral: true, content: parse("list")},
-                        {isVariable: true, content: parse("a")}}},
+                        {isLiteral: true, content: mustParse("list")},
+                        {isVariable: true, content: mustParse("a")}}},
         },
 	} {
-        st := parse(tt.template)
+        st := mustParse(tt.template)
         got := analyseTemplate(tt.literals, st, tt.gensyms, tt.ellipsis)
         revGensym := map[Symbol]Symbol{}
         for k, v := range tt.gensyms {
@@ -125,60 +125,60 @@ func TestUnification(t *testing.T) {
             pattern: "x",
             input:   "42",
             want:    map[Symbol]SExpression{
-                "x": parse("42"),
+                "x": mustParse("42"),
             },
         },
         {
             pattern: "(_ x)",
             input:   "(macro 42)",
             want:    map[Symbol]SExpression{
-                "x": parse("42"),
+                "x": mustParse("42"),
             },
         },
         {
             pattern: "(_ a b ...)",
             input:   "(macro 42)",
             want:    map[Symbol]SExpression{
-                "a": parse("42"),
+                "a": mustParse("42"),
             },
         },
         {
             pattern: "(_ a b ...)",
             input:   "(macro 1 2 3 4)",
             want:    map[Symbol]SExpression{
-                "a":   parse("1"),
-                "b#0": parse("2"),
-                "b#1": parse("3"),
-                "b#2": parse("4"),
+                "a":   mustParse("1"),
+                "b#0": mustParse("2"),
+                "b#1": mustParse("3"),
+                "b#2": mustParse("4"),
             },
         },
         {
             pattern: "(_ (a b ...) ...)",
             input:   "(macro (1))",
             want:    map[Symbol]SExpression{
-                "a#0": parse("1"),
+                "a#0": mustParse("1"),
             },
         },
         {
             pattern: "(_ (a b ...) ...)",
             input:   "(macro (1 2) (3 4))",
             want:    map[Symbol]SExpression{
-                "a#0":   parse("1"),
-                "b#0#0": parse("2"),
-                "a#1":   parse("3"),
-                "b#1#0": parse("4"),
+                "a#0":   mustParse("1"),
+                "b#0#0": mustParse("2"),
+                "a#1":   mustParse("3"),
+                "b#1#0": mustParse("4"),
             },
         },
         {
             pattern: "(_ (a b ...) ...)",
             input:   "(macro (1 2 3) (4 5 6))",
             want:    map[Symbol]SExpression{
-                "a#0":   parse("1"),
-                "b#0#0": parse("2"),
-                "b#0#1": parse("3"),
-                "a#1":   parse("4"),
-                "b#1#0": parse("5"),
-                "b#1#1": parse("6"),
+                "a#0":   mustParse("1"),
+                "b#0#0": mustParse("2"),
+                "b#0#1": mustParse("3"),
+                "a#1":   mustParse("4"),
+                "b#1#0": mustParse("5"),
+                "b#1#1": mustParse("6"),
             },
         },
         {
@@ -190,13 +190,13 @@ func TestUnification(t *testing.T) {
     } {
         gensyms := map[Symbol]Symbol{}
         ellipsis := map[Symbol]int{}
-        pp := analysePattern(tt.literals, parse(tt.pattern), gensyms, ellipsis)
+        pp := analysePattern(tt.literals, mustParse(tt.pattern), gensyms, ellipsis)
         revGensym := map[Symbol]Symbol{}
         for k, v := range gensyms {
             revGensym[v] = k
         }
         s := map[Symbol]SExpression{}
-        ok := unify(pp, parse(tt.input), s)
+        ok := unify(pp, mustParse(tt.input), s)
         // here we have to reverse the substitution map wrt gensyms,
         // but taking into account the # annotations for ellipsis repetition
         for k, v := range s {
@@ -225,31 +225,31 @@ func TestSubstitution(t *testing.T) {
         {
             template: "x",
             substitutions: map[Symbol]SExpression{
-                "x": parse("42"),
+                "x": mustParse("42"),
             },
             want:   "42",
         },
         {
             template: "(x)",
             substitutions: map[Symbol]SExpression{
-                "x": parse("42"),
+                "x": mustParse("42"),
             },
             want:   "(42)",
         },
         {
             template: "(a b ...)",
             substitutions: map[Symbol]SExpression{
-                "a": parse("42"),
+                "a": mustParse("42"),
             },
             want:   "(42)",
         },
         {
             template: "(a b ...)",
             substitutions: map[Symbol]SExpression{
-                "a":   parse("1"),
-                "b#0": parse("2"),
-                "b#1": parse("3"),
-                "b#2": parse("4"),
+                "a":   mustParse("1"),
+                "b#0": mustParse("2"),
+                "b#1": mustParse("3"),
+                "b#2": mustParse("4"),
             },
             ellipsis: map[Symbol]int{"b":1},
             want:   "(1 2 3 4)",
@@ -257,7 +257,7 @@ func TestSubstitution(t *testing.T) {
         {
             template: "((a b ...) ...)",
             substitutions: map[Symbol]SExpression{
-                "a#0": parse("1"),
+                "a#0": mustParse("1"),
             },
             ellipsis: map[Symbol]int{"a":1, "b":2},
             want:   "((1))",
@@ -265,10 +265,10 @@ func TestSubstitution(t *testing.T) {
         {
             template: "((a b ...) ...)",
             substitutions: map[Symbol]SExpression{
-                "a#0":   parse("1"),
-                "b#0#0": parse("2"),
-                "a#1":   parse("3"),
-                "b#1#0": parse("4"),
+                "a#0":   mustParse("1"),
+                "b#0#0": mustParse("2"),
+                "a#1":   mustParse("3"),
+                "b#1#0": mustParse("4"),
             },
             ellipsis: map[Symbol]int{"a":1, "b":2},
             want:   "((1 2) (3 4))",
@@ -276,12 +276,12 @@ func TestSubstitution(t *testing.T) {
         {
             template: "((a b ...) ...)",
             substitutions: map[Symbol]SExpression{
-                "a#0":   parse("1"),
-                "b#0#0": parse("2"),
-                "b#0#1": parse("3"),
-                "a#1":   parse("4"),
-                "b#1#0": parse("5"),
-                "b#1#1": parse("6"),
+                "a#0":   mustParse("1"),
+                "b#0#0": mustParse("2"),
+                "b#0#1": mustParse("3"),
+                "a#1":   mustParse("4"),
+                "b#1#0": mustParse("5"),
+                "b#1#1": mustParse("6"),
             },
             ellipsis: map[Symbol]int{"a":1, "b":2},
             want:   "((1 2 3) (4 5 6))",
@@ -290,7 +290,7 @@ func TestSubstitution(t *testing.T) {
             template: "(list x)",
             literals: []string{"list"},
             substitutions: map[Symbol]SExpression{
-                "x": parse("42"),
+                "x": mustParse("42"),
             },
             want:   "(list 42)",
         },
@@ -304,8 +304,8 @@ func TestSubstitution(t *testing.T) {
         */
     } {
         // not using any gensyms here
-        want := parse(tt.want)
-        templ := analyseTemplate(tt.literals, parse(tt.template), map[Symbol]Symbol{}, map[Symbol]int{})
+        want := mustParse(tt.want)
+        templ := analyseTemplate(tt.literals, mustParse(tt.template), map[Symbol]Symbol{}, map[Symbol]int{})
         got := substituteTemplate(templ, tt.substitutions, tt.ellipsis)
         if !reflect.DeepEqual(got, want) {
             t.Errorf("%d) got %v want %v", i, got, want)
@@ -364,8 +364,14 @@ func TestDefSyntax(t *testing.T) {
             want:  "((2 3 4) (6 7))",
         },
 	} {
-		p := parse(tt.input)
-		e := main.evalEnv(env, p)
+        p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+        e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

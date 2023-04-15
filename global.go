@@ -133,8 +133,17 @@ func display(p *process, env *Env, args []SExpression) (SExpression, error) {
 }
 
 func exit(p *process, env *Env, args []SExpression) (SExpression, error) {
-	os.Exit(0)
-	return nil, nil
+    ex := fmt.Errorf("normal")
+    target := p.pid
+    if len(args) == 1 {
+        ex = fmt.Errorf("** exception error: %s", args[0])
+    }
+    if len(args) > 1 {
+        target = args[0].AsPrimitive().(string)
+        ex = fmt.Errorf("** exception error: %s", args[1])
+    }
+    errchannels[target] <- ex
+	return nil, ex
 }
 
 func stringappend(p *process, env *Env, args []SExpression) (SExpression, error) {
@@ -166,7 +175,6 @@ func eval(p *process, env *Env, args []SExpression) (SExpression, error) {
     if err != nil {
         // TODO chez scheme uses error continuations
         // need to figure out what I want to do here exactly
-        fmt.Println(err)
         errchannels[p.pid] <- err
         return nil, err
     }

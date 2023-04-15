@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     "testing"
+    "time"
 )
 
 // https://learnyousomeerlang.com/more-on-multiprocessing
@@ -90,5 +91,80 @@ func TestErlangReceiveMacro(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
 		}
+    }
+}
+
+// https://learnyousomeerlang.com/errors-and-processes
+func TestErlangExit(t *testing.T) {
+    if testing.Short() {
+        t.Skip()
+    }
+    pidi := 0
+    pidFunc = func() string {
+        pidi++
+        return fmt.Sprintf("<%02d>", pidi)
+    }
+    main := newProcess()
+	env := GlobalEnv()
+	loadErlang(main, env)
+    loadKanren(main, env)
+	for i, tt := range []struct {
+		input   string
+		want    string
+        wantErr string
+        wait    bool
+	} {
+        {
+            input: "(define myproc (lambda () (begin (sleep 1000) (exit 'reason))))",
+        },
+        {
+            input: "(spawn myproc (quote ()))",
+            want:  "<02>",
+            wait:  true,
+        },
+        {
+            input:   "(spawn_link myproc (quote ()))",
+            want:    "<03>",
+            wait:    true,
+            wantErr: "** exception error: reason",
+        },
+        {
+            input: `(define chain (lambda (n)
+                      (if (eqv? n 0) (receive ((x) x -> #t) (after 500 -> (exit "chain dies here")))
+                      (let ((pid (spawn (lambda () (chain (- n 1))) (quote ()) ))) (link pid) (receive ((x) x -> #t))))))`,
+        },
+        {
+            input: "(spawn_link chain (quote (3)))",
+            want:    "<05>",
+            wait:    true,
+            wantErr: "** exception error: chain dies here",
+        },
+    } {
+        p, err := parse(tt.input)
+        if err != nil {
+            t.Errorf("%d) parse error %v", i, err)
+        }
+        e, err := main.evalEnv(env, p)
+        if err != nil {
+            t.Errorf("%d) eval error %v", i, err)
+        }
+		got := e.String()
+		if got != tt.want {
+			t.Errorf("%d) got %s want %s", i, got, tt.want)
+		}
+        if tt.wait {
+            time.Sleep(2 * time.Second)
+        }
+        perr := main.err
+        if perr == nil {
+            perr = fmt.Errorf("")
+        }
+        if perr.Error() != tt.wantErr {
+			t.Errorf("%d) got error %s want %s", i, perr.Error(), tt.wantErr)
+        }
+        if tt.wantErr != "" {
+            // restart the main process, error will have caused it to die
+            main = newProcess()
+        }
     }
 }

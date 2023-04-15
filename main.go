@@ -22,6 +22,9 @@ func main() {
     p.evalEnv(env, repl)
     spawnLink(p, env, []SExpression{mustParse("(REPL (environment))"), mustParse("(quote ())")})
     for p.err == nil { } // await repl termination
+    if p.err.Error() != "normal" {
+        fmt.Println(p.err)
+    }
 }
 
 func mustParse(program string) SExpression {

@@ -136,7 +136,9 @@ func TestLisp(t *testing.T) {
 }
 
 func TestTailRecursion(t *testing.T) {
-    t.Skip() // ignored, takes too long
+    if testing.Short() {
+        t.Skip()
+    }
     main := newProcess()
 	env := GlobalEnv()
 	for i, tt := range []struct {

@@ -23,7 +23,7 @@ func TestErlangReceiveMacro(t *testing.T) {
 	} {
         {
             input: "(self)",
-            want:  "<01>",
+            want:  `"<01>"`,
         },
         {
             input: `(define rec (lambda (sender)
@@ -119,12 +119,12 @@ func TestErlangExit(t *testing.T) {
         },
         {
             input: "(spawn myproc (quote ()))",
-            want:  "<02>",
+            want:  `"<02>"`,
             wait:  true,
         },
         {
             input:   "(spawn_link myproc (quote ()))",
-            want:    "<03>",
+            want:    `"<03>"`,
             wait:    true,
             wantErr: "** exception error: reason",
         },
@@ -135,9 +135,21 @@ func TestErlangExit(t *testing.T) {
         },
         {
             input: "(spawn_link chain (quote (3)))",
-            want:    "<05>",
+            want:    `"<05>"`, // <04> is the restarted main proc after last error
             wait:    true,
-            wantErr: "** exception error: chain dies here",
+            wantErr: `** exception error: "chain dies here"`,
+        },
+        {
+            input: "(process_flag 'trap_exit #t)",
+        },
+        {
+            input: "(spawn_link chain (quote (3)))",
+            want:  `"<10>"`, // previous chain x3 + another main restart, so main is <09> now
+            wait:  true,
+        },
+        {
+            input: "(receive ((x) x -> x))",
+            want:  `(EXIT <13> "chain dies here")`,
         },
     } {
         p, err := parse(tt.input)
@@ -153,7 +165,7 @@ func TestErlangExit(t *testing.T) {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
 		}
         if tt.wait {
-            time.Sleep(2 * time.Second)
+            time.Sleep(3 * time.Second)
         }
         perr := main.err
         if perr == nil {

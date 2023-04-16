@@ -1,6 +1,7 @@
 package main
 
 import (
+    "fmt"
 	"strconv"
 	"strings"
 )
@@ -143,7 +144,7 @@ func (a Atom) String() string {
 		return ""
 	}
 	if s, ok := a.value.(string); ok {
-		return s
+		return fmt.Sprintf("%q", s)
 	}
 	return strconv.FormatFloat(a.AsNumber(), 'f', -1, 64)
 }

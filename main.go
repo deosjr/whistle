@@ -23,7 +23,7 @@ func main() {
     spawnLink(p, env, []SExpression{mustParse("(REPL (environment))"), mustParse("(quote ())")})
     for p.err == nil { } // await repl termination
     if p.err.Error() != "normal" {
-        fmt.Println(p.err)
+        fmt.Println("** exception error: ", p.err)
     }
 }
 

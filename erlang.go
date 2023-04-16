@@ -19,7 +19,14 @@ type process struct {
     pid string
     mailbox []SExpression
     err   error
+    // process flags
+    trapExit bool
     // TODO: rand seed, etc
+}
+
+type processError struct {
+    err error
+    pid string
 }
 
 func newProcess() *process {
@@ -28,7 +35,7 @@ func newProcess() *process {
     }
     ch := make(chan SExpression)
     mailboxes[p.pid] = ch
-    errch := make(chan error)
+    errch := make(chan processError)
     errchannels[p.pid] = errch
     processlinks[p.pid] = map[string]struct{}{}
     go func() {
@@ -38,10 +45,16 @@ func newProcess() *process {
                 p.Lock()
                 p.mailbox = append(p.mailbox, msg)
                 p.Unlock()
-            case err := <-errch:
-                p.err = err
+            case perr := <-errch:
+                if p.trapExit && perr.pid != p.pid {
+                    go func() {
+                        ch <- list2cons(NewPrimitive("EXIT"), NewPrimitive(perr.pid), NewPrimitive(perr.err.Error()))
+                    }()
+                    continue
+                }
+                p.err = perr.err
                 for link := range processlinks[p.pid] {
-                    errchannels[link] <- err
+                    errchannels[link] <- perr
                 }
                 return
             }
@@ -51,7 +64,7 @@ func newProcess() *process {
 }
 
 var mailboxes = make(map[string]chan SExpression)
-var errchannels = make(map[string]chan error)
+var errchannels = make(map[string]chan processError)
 var processlinks = make(map[string]map[string]struct{})
 
 func loadErlang(p *process, env *Env) {
@@ -61,6 +74,7 @@ func loadErlang(p *process, env *Env) {
     env.dict["link"]  = builtinFunc(link)
     env.dict["spawn_link"] = builtinFunc(spawnLink)
     env.dict["unlink"] = builtinFunc(unlink)
+    env.dict["process_flag"] = builtinFunc(processFlag)
     // receive as 2 macros AND a function call...
     env.dict["receive_builtin"] = builtinFunc(receive)
     macromap["receive"] = syntaxRules("receive", mustParse(`(syntax-rules (receive_builtin receive_ after ->)
@@ -204,6 +218,16 @@ func receive(p *process, env *Env, args []SExpression) (SExpression, error) {
         }
         seen = append(seen, msg)
     }
+}
+
+func processFlag(p *process, env *Env, args []SExpression) (SExpression, error) {
+    flag := args[0].AsSymbol()
+    if flag != "trap_exit" {
+        return nil, fmt.Errorf("unknown process flag %s", flag)
+    }
+    b := args[1].AsPrimitive().(bool)
+    p.trapExit = b
+    return NewPrimitive(true), nil
 }
 
 func copyEnv(env *Env) *Env {

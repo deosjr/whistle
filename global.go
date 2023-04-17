@@ -128,6 +128,12 @@ func isequivalent(p *process, env *Env, args []SExpression) (SExpression, error)
 }
 
 func display(p *process, env *Env, args []SExpression) (SExpression, error) {
+    if args[0].IsPrimitive() {
+        if s, ok := args[0].AsPrimitive().(string); ok {
+            fmt.Print(s)
+            return NewPrimitive(true), nil
+        }
+    }
 	fmt.Print(args[0])
 	return NewPrimitive(true), nil
 }

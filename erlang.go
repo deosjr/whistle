@@ -48,7 +48,7 @@ func newProcess() *process {
             case perr := <-errch:
                 if p.trapExit && perr.pid != p.pid {
                     go func() {
-                        ch <- list2cons(NewPrimitive("EXIT"), NewPrimitive(perr.pid), NewPrimitive(perr.err.Error()))
+                        ch <- list2cons(NewSymbol("EXIT"), NewSymbol(perr.pid), NewPrimitive(perr.err.Error()))
                     }()
                     continue
                 }
@@ -104,7 +104,7 @@ func generatePid() string {
 }
 
 func self(p *process, env *Env, args []SExpression) (SExpression, error) {
-    return NewPrimitive(p.pid), nil
+    return NewSymbol(p.pid), nil
 }
 
 // (spawn module function (args ...))
@@ -113,11 +113,11 @@ func spawn(spawning *process, env *Env, args []SExpression) (SExpression, error)
     p := newProcess()
     e := copyEnv(env)
     go eval(p, e, []SExpression{NewPair(args[0], args[1])})
-    return NewPrimitive(p.pid), nil
+    return NewSymbol(p.pid), nil
 }
 
 func link(p *process, env *Env, args []SExpression) (SExpression, error) {
-    other := args[0].AsPrimitive().(string)
+    other := args[0].AsSymbol()
     processlinks[p.pid][other] = struct{}{}
     processlinks[other][p.pid] = struct{}{}
     return NewPrimitive(true), nil
@@ -130,11 +130,11 @@ func spawnLink(spawning *process, env *Env, args []SExpression) (SExpression, er
     processlinks[spawning.pid][p.pid] = struct{}{}
     processlinks[p.pid][spawning.pid] = struct{}{}
     go eval(p, e, []SExpression{NewPair(args[0], args[1])})
-    return NewPrimitive(p.pid), nil
+    return NewSymbol(p.pid), nil
 }
 
 func unlink(p *process, env *Env, args []SExpression) (SExpression, error) {
-    other := args[0].AsPrimitive().(string)
+    other := args[0].AsSymbol()
     delete(processlinks[p.pid], other)
     delete(processlinks[other], p.pid)
     return NewPrimitive(true), nil
@@ -142,7 +142,7 @@ func unlink(p *process, env *Env, args []SExpression) (SExpression, error) {
 
 // (send to msg)
 func send(p *process, env *Env, args []SExpression) (SExpression, error) {
-    ch := mailboxes[args[0].AsPrimitive().(string)]
+    ch := mailboxes[args[0].AsSymbol()]
     ch <- args[1]
     return args[1], nil
 }

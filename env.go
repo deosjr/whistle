@@ -63,7 +63,7 @@ Loop:
 			if e.IsSymbol() {
 				ed, ok := env.find(e.AsSymbol())
                 if !ok {
-                    return nil, fmt.Errorf("Exception: variable %s is not bound", e.AsSymbol())
+                    return nil, fmt.Errorf("variable %s is not bound", e.AsSymbol())
                 }
                 return ed.dict[e.AsSymbol()], nil
 			}
@@ -147,7 +147,7 @@ Loop:
         }
         e = peval
 		if !e.IsProcedure() {
-            return nil, fmt.Errorf("Exception: attempt to apply non-procedure %s", e)
+            return nil, fmt.Errorf("attempt to apply non-procedure %s", e)
 		}
 		proc := e.AsProcedure()
         pargs := ep.cdr().AsPair()

@@ -170,3 +170,23 @@ Loop:
 	    env, e = newEnv(defproc.params, args, defproc.env), defproc.body
 	}
 }
+
+func copyEnv(env *Env) *Env {
+    if env == nil {
+        return nil
+    }
+    cenv := &Env{outer: copyEnv(env.outer)}
+    m := map[Symbol]SExpression{}
+    for k, v := range env.dict {
+        if v.IsProcedure() && !v.AsProcedure().isBuiltin {
+            d := v.AsProcedure().defined()
+            // TODO: does this always hold? I think so but not sure
+            d.env = cenv
+            m[k] = Proc{sexpression: sexpression{value: d}}
+            continue
+        }
+        m[k] = v
+    }
+    cenv.dict = m
+    return cenv
+}

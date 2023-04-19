@@ -112,7 +112,14 @@ func self(p *process, env *Env, args []SExpression) (SExpression, error) {
 func spawn(spawning *process, env *Env, args []SExpression) (SExpression, error) {
     p := newProcess()
     e := copyEnv(env)
-    go eval(p, e, []SExpression{NewPair(args[0], args[1])})
+    f := args[0].AsProcedure()
+    // TODO: I'm sure env can still sneak in via args[1], causing race conditions
+    if !f.isBuiltin {
+        d := f.defined()
+        d.env = copyEnv(d.env)
+        f = Proc{sexpression: sexpression{value: d}}
+    }
+    go eval(p, e, []SExpression{NewPair(f, args[1])})
     return NewSymbol(p.pid), nil
 }
 
@@ -180,7 +187,11 @@ func receive(p *process, env *Env, args []SExpression) (SExpression, error) {
     }
     seen := []SExpression{}
     for {
-        if len(p.mailbox) == 0 {
+        var msgs int
+        p.Lock()
+        msgs = len(p.mailbox)
+        p.Unlock()
+        if msgs == 0 {
             // TODO: hot loop :(
             if expires && time.Now().Sub(start) > after {
                 p.Lock()
@@ -228,15 +239,4 @@ func processFlag(p *process, env *Env, args []SExpression) (SExpression, error) 
     b := args[1].AsPrimitive().(bool)
     p.trapExit = b
     return NewPrimitive(true), nil
-}
-
-func copyEnv(env *Env) *Env {
-    if env == nil {
-        return nil
-    }
-    m := map[Symbol]SExpression{}
-    for k, v := range env.dict {
-        m[k] = v
-    }
-    return &Env{dict: m, outer: copyEnv(env.outer)}
 }

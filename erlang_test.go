@@ -94,7 +94,20 @@ func TestErlangReceiveMacro(t *testing.T) {
     }
 }
 
+func TestCopyEnv(t *testing.T) {
+    // TODO: copyEnv doesnt copy envs enclosed in lambda defs! race conditions!
+    main := newProcess()
+    env := GlobalEnv()
+    s, _ := parse("(define f (lambda (x) x))")
+    main.evalEnv(env, s)
+    cenv := copyEnv(env)
+    if env.dict["f"].(Proc).defined().env == cenv.dict["f"].(Proc).defined().env {
+        t.Fatal("Env leaked in copy")
+    }
+}
+
 // https://learnyousomeerlang.com/errors-and-processes
+// TODO: sometimes spins forever? why? not getting msg?
 func TestErlangExit(t *testing.T) {
     if testing.Short() {
         t.Skip()

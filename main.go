@@ -20,10 +20,17 @@ func main() {
                (display newline)
                (REPL env))))`)
     p.evalEnv(env, repl)
-    spawnLink(p, env, []SExpression{mustParse("(REPL (environment))"), mustParse("(quote ())")})
-    for p.err == nil { } // await repl termination
-    if p.err.Error() != "normal" {
-        fmt.Println("** exception error:", p.err)
+    p.evalEnv(env, mustParse("(process_flag 'trap_exit #t)"))
+    p.evalEnv(env, mustParse("(spawn_link (lambda () (REPL (environment))) (quote ()))"))
+    // TODO: hack so that the REPL communicates env back to main
+    // DANGEROUS sharing of state, but will work :)
+    // TODO: restart the REPL with last-known env if REPL crashes
+    e, _ := p.evalEnv(env, mustParse("(receive ((x) x -> x))"))
+    reason := e.AsPair().caddr()
+    if reason.String() != "normal" {
+        fmt.Print("** exception error: ")
+        display(p, env, []SExpression{reason})
+        fmt.Println()
     }
 }
 

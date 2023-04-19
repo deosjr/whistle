@@ -112,10 +112,10 @@ func self(p *process, env *Env, args []SExpression) (SExpression, error) {
 func spawn(spawning *process, env *Env, args []SExpression) (SExpression, error) {
     p := newProcess()
     e := copyEnv(env)
-    f := args[0].AsProcedure()
+    f := args[0]
     // TODO: I'm sure env can still sneak in via args[1], causing race conditions
-    if !f.isBuiltin {
-        d := f.defined()
+    if f.IsProcedure() && !f.AsProcedure().isBuiltin {
+        d := f.AsProcedure().defined()
         d.env = copyEnv(d.env)
         f = Proc{sexpression: sexpression{value: d}}
     }
@@ -136,7 +136,14 @@ func spawnLink(spawning *process, env *Env, args []SExpression) (SExpression, er
     e := copyEnv(env)
     processlinks[spawning.pid][p.pid] = struct{}{}
     processlinks[p.pid][spawning.pid] = struct{}{}
-    go eval(p, e, []SExpression{NewPair(args[0], args[1])})
+    f := args[0]
+    // TODO: I'm sure env can still sneak in via args[1], causing race conditions
+    if f.IsProcedure() && !f.AsProcedure().isBuiltin {
+        d := f.AsProcedure().defined()
+        d.env = copyEnv(d.env)
+        f = Proc{sexpression: sexpression{value: d}}
+    }
+    go eval(p, e, []SExpression{NewPair(f, args[1])})
     return NewSymbol(p.pid), nil
 }
 

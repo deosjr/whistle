@@ -20,18 +20,19 @@ func main() {
                (display newline)
                (REPL env))))`)
     p.evalEnv(env, repl)
-    // TODO: hack so that the REPL communicates env back to main
+    // NOTE: injecting the env through closure/func argument
+    // shows that spawn is still full of env sharing bugs!
     // DANGEROUS sharing of state, but will work :)
-    // TODO: restart the REPL with last-known env if REPL crashes
-    restarter := mustParse(`(define restarter (lambda ()
+    // REPL is now restarted on error with env intact
+    restarter := mustParse(`(define restarter (lambda (env)
         (begin (process_flag 'trap_exit #t)
-               (let ((pid (spawn_link (lambda () (REPL (environment))) (quote ()))))
+               (let ((pid (spawn_link (lambda () (REPL env)) (quote ()))))
                     (receive
                         ((reason) (quasiquote (EXIT ,pid ,reason)) ->
                             (if (eqv? reason "normal") #t
-                            (begin (display "** exception error: ") (display reason) (display newline) (restarter)))))))))`)
+                            (begin (display "** exception error: ") (display reason) (display newline) (restarter env)))))))))`)
     p.evalEnv(env, restarter)
-    p.evalEnv(env, mustParse("(restarter)"))
+    p.evalEnv(env, mustParse("(restarter (environment))"))
 }
 
 func mustParse(program string) SExpression {

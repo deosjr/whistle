@@ -45,8 +45,8 @@ func mustParse(program string) SExpression {
 
 func parse(program string) (SExpression, error) {
 	s := tokenize(program)
-	p, _ := readFromTokens(s)
-	return p, nil // TODO!
+	p, _, err := readFromTokens(s)
+	return p, err
 }
 
 func tokenize(s string) []string {
@@ -81,9 +81,9 @@ func tokenize(s string) []string {
 	return tokenized
 }
 
-func readFromTokens(tokens []string) (SExpression, []string) {
+func readFromTokens(tokens []string) (SExpression, []string, error) {
 	if len(tokens) == 0 {
-		panic("syntax error")
+        return nil, nil, fmt.Errorf("syntax error")
 	}
 	token := tokens[0]
 	tokens = tokens[1:]
@@ -91,19 +91,24 @@ func readFromTokens(tokens []string) (SExpression, []string) {
 	case "(":
 		list := []SExpression{}
 		for tokens[0] != ")" {
-			parsed, t := readFromTokens(tokens)
+			parsed, t, err := readFromTokens(tokens)
+            if err != nil {
+                return nil, nil, err
+            }
 			if len(t) == 0 {
-				panic("syntax error")
+                return nil, nil, fmt.Errorf("syntax error")
 			}
 			tokens = t
 			list = append(list, parsed)
 		}
-		syntaxCheck(list)
-		return list2cons(list...), tokens[1:]
+        if err := syntaxCheck(list); err != nil {
+            return nil, nil, err
+        }
+		return list2cons(list...), tokens[1:], nil
 	case ")":
-		panic("unexpected ')'")
+        return nil, nil, fmt.Errorf("unexpected ')'")
 	default:
-		return atom(token), tokens
+		return atom(token), tokens, nil
 	}
 }
 
@@ -116,12 +121,12 @@ func atom(token string) SExpression {
 	}
     // TODO unquote syntax only works on symbols, not lists atm!
     if token[0] == ',' {
-        unquote, _ := readFromTokens([]string{"(", "unquote", token[1:], ")"})
+        unquote, _, _ := readFromTokens([]string{"(", "unquote", token[1:], ")"})
         return unquote
     }
     // TODO quote syntax only works on symbols, not lists atm!
     if token[0] == '\'' {
-        quote, _ := readFromTokens([]string{"(", "quote", token[1:], ")"})
+        quote, _, _ := readFromTokens([]string{"(", "quote", token[1:], ")"})
         return quote
     }
 	return NewSymbol(token)
@@ -131,59 +136,60 @@ func atom(token string) SExpression {
 // so we don't encounter weirdness at runtime
 // TODO: how does this work with macros? -> currently it doesn't
 // would take applying macros actually at read time to make this work
-func syntaxCheck(list []SExpression) {
+func syntaxCheck(list []SExpression) error {
 	if len(list) == 0 {
-		return
+		return nil
 	}
 	if !list[0].IsSymbol() {
-		return
+		return nil
 	}
 	switch list[0].AsSymbol() {
 	case "if":
 		if len(list) != 3 && len(list) != 4 {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 	case "begin":
 		if len(list) == 1 {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 	case "quote":
 		if len(list) != 2 {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 	case "define":
 		if len(list) != 3 {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 		if !list[1].IsSymbol() {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 	case "define-syntax":
 		if len(list) != 3 {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 		if !list[1].IsSymbol() {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 	case "syntax-rules":
 		if !list[1].IsPair() {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
         for _, e := range list[2:] {
             if !e.IsPair() {
-			    panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			    return fmt.Errorf("invalid syntax %s", list2cons(list...))
             }
             p := cons2list(e.AsPair())
             if len(p) != 2 {
-			    panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			    return fmt.Errorf("invalid syntax %s", list2cons(list...))
             }
         }
 	case "lambda":
 		if len(list) != 3 {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 		if !list[1].IsPair() {
-			panic(fmt.Sprintf("invalid syntax %s", list2cons(list...)))
+			return fmt.Errorf("invalid syntax %s", list2cons(list...))
 		}
 	}
+    return nil
 }

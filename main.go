@@ -3,11 +3,15 @@ package main
 // http://norvig.com/lispy.html
 
 import (
-    "github.com/deosjr/lispadventures/lisp"
+	"github.com/deosjr/lispadventures/lisp"
 )
 
 func main() {
 	p, env := lisp.New()
+	// example of adding function from outside lisp package
+	env.AddBuiltin("/", func(args []lisp.SExpression) (lisp.SExpression, error) {
+		return lisp.NewPrimitive(args[0].AsNumber() / args[1].AsNumber()), nil
+	})
 	// TODO: reintroduces extra newline after define
 	p.Eval(env, `(define REPL (lambda (env)
         (begin (display "> ")

@@ -32,8 +32,14 @@ func (e *Env) Add(s Symbol, sexp SExpression) {
 	e.dict[s] = sexp
 }
 
-func (e *Env) AddBuiltin(s Symbol, f BuiltinProc) {
+func (e *Env) addBuiltin(s Symbol, f BuiltinProc) {
 	e.dict[s] = builtinFunc(f)
+}
+
+func (e *Env) AddBuiltin(s Symbol, f ExternalProc) {
+	e.dict[s] = builtinFunc(func(p *process, env *Env, args []SExpression) (SExpression, error) {
+		return f(args)
+	})
 }
 
 func newEnv(params Pair, args []SExpression, outer *Env) *Env {

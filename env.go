@@ -28,6 +28,14 @@ func (e *Env) replace(s Symbol, sexp SExpression) bool {
     return true
 }
 
+func (e *Env) Add(s Symbol, sexp SExpression) {
+    e.dict[s] = sexp
+}
+
+func (e *Env) AddBuiltin(s Symbol, f BuiltinProc) {
+    e.dict[s] = builtinFunc(f)
+}
+
 func newEnv(params Pair, args []SExpression, outer *Env) *Env {
 	m := map[Symbol]SExpression{}
 	i := 0

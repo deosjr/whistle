@@ -9,30 +9,33 @@ import (
 )
 
 func main() {
-    p := newProcess()
-	env := GlobalEnv()
-    loadKanren(p, env)
-    loadErlang(p, env)
+    p, env := New()
     // TODO: reintroduces extra newline after define
-    repl := mustParse(`(define REPL (lambda (env)
+    p.Eval(env, `(define REPL (lambda (env)
         (begin (display "> ")
                (display (eval (read) env))
                (display newline)
                (REPL env))))`)
-    p.evalEnv(env, repl)
     // NOTE: injecting the env through closure/func argument
     // shows that spawn is still full of env sharing bugs!
     // DANGEROUS sharing of state, but will work :)
     // REPL is now restarted on error with env intact
-    restarter := mustParse(`(define restarter (lambda (env)
+    p.Eval(env, `(define restarter (lambda (env)
         (begin (process_flag 'trap_exit #t)
                (let ((pid (spawn_link (lambda () (REPL env)) (quote ()))))
                     (receive
                         ((reason) (quasiquote (EXIT ,pid ,reason)) ->
                             (if (eqv? reason "normal") #t
                             (begin (display "** exception error: ") (display reason) (display newline) (restarter env)))))))))`)
-    p.evalEnv(env, restarter)
-    p.evalEnv(env, mustParse("(restarter (environment))"))
+    p.Eval(env, "(restarter (environment))")
+}
+
+func New() (*process, *Env) {
+    p := newProcess()
+	env := GlobalEnv()
+    loadKanren(p, env)
+    loadErlang(p, env)
+    return p, env
 }
 
 func mustParse(program string) SExpression {

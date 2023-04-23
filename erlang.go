@@ -63,20 +63,25 @@ func newProcess() *process {
     return p
 }
 
+func (p *process) Eval(env *Env, input string) (SExpression, error) {
+    return p.evalEnv(env, mustParse(input))
+}
+
 var mailboxes = make(map[string]chan SExpression)
 var errchannels = make(map[string]chan processError)
 var processlinks = make(map[string]map[string]struct{})
 
 func loadErlang(p *process, env *Env) {
-    env.dict["self"]  = builtinFunc(self)
-    env.dict["spawn"] = builtinFunc(spawn)
-    env.dict["send"]  = builtinFunc(send)
-    env.dict["link"]  = builtinFunc(link)
-    env.dict["spawn_link"] = builtinFunc(spawnLink)
-    env.dict["unlink"] = builtinFunc(unlink)
-    env.dict["process_flag"] = builtinFunc(processFlag)
+    env.AddBuiltin("self", self)
+    env.AddBuiltin("send", send)
+    env.AddBuiltin("link", link)
+    env.AddBuiltin("unlink", unlink)
+    env.AddBuiltin("spawn", spawn)
+    env.AddBuiltin("spawn_link", spawnLink)
+    env.AddBuiltin("process_flag", processFlag)
+
     // receive as 2 macros AND a function call...
-    env.dict["receive_builtin"] = builtinFunc(receive)
+    env.AddBuiltin("receive_builtin", receive)
     macromap["receive"] = syntaxRules("receive", mustParse(`(syntax-rules (receive_builtin receive_ after ->)
         ((_ ((v ...) rest ... ) ... (after millis -> expression ...))
          (receive_builtin (quote (after millis expression ...)) (receive_ (v ...) rest ...) ...))

@@ -1,3 +1,3 @@
-module github.com/deosjr/lisp
+module github.com/deosjr/lispadventures
 
-go 1.18
+go 1.20

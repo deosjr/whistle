@@ -1,7 +1,7 @@
-package main
+package lisp
 
 import (
-    "fmt"
+	"fmt"
 	"strconv"
 	"strings"
 )

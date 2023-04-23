@@ -1,7 +1,7 @@
-package main
+package lisp
 
 import (
-    "bufio"
+	"bufio"
 	"fmt"
 	"math"
 	"os"
@@ -21,7 +21,7 @@ func GlobalEnv() *Env {
 		"#t":             NewPrimitive(true),
 		"#f":             NewPrimitive(false),
 		"pi":             NewPrimitive(math.Pi),
-        "newline":        NewPrimitive("\n"),
+		"newline":        NewPrimitive("\n"),
 		"number?":        builtinFunc(isnumber),
 		"pair?":          builtinFunc(ispair),
 		"car":            builtinFunc(car),
@@ -35,11 +35,11 @@ func GlobalEnv() *Env {
 		"string-append":  builtinFunc(stringappend),
 		"number->string": builtinFunc(number2string),
 		"string->symbol": builtinFunc(string2symbol),
-        "gensym":         builtinFunc(gensymFunc),
-        "eval":           builtinFunc(eval),
-        "read":           builtinFunc(read),
-        "read-string":    builtinFunc(readString),
-        "environment":    builtinFunc(environment),
+		"gensym":         builtinFunc(gensymFunc),
+		"eval":           builtinFunc(eval),
+		"read":           builtinFunc(read),
+		"read-string":    builtinFunc(readString),
+		"environment":    builtinFunc(environment),
 	}, outer: nil}
 }
 
@@ -128,27 +128,27 @@ func isequivalent(p *process, env *Env, args []SExpression) (SExpression, error)
 }
 
 func display(p *process, env *Env, args []SExpression) (SExpression, error) {
-    if args[0].IsPrimitive() {
-        if s, ok := args[0].AsPrimitive().(string); ok {
-            fmt.Print(s)
-            return NewPrimitive(true), nil
-        }
-    }
+	if args[0].IsPrimitive() {
+		if s, ok := args[0].AsPrimitive().(string); ok {
+			fmt.Print(s)
+			return NewPrimitive(true), nil
+		}
+	}
 	fmt.Print(args[0])
 	return NewPrimitive(true), nil
 }
 
 func exit(p *process, env *Env, args []SExpression) (SExpression, error) {
-    ex := fmt.Errorf("normal")
-    target := p.pid
-    if len(args) == 1 {
-        ex = fmt.Errorf("%s", args[0])
-    }
-    if len(args) > 1 {
-        target = args[0].AsPrimitive().(string)
-        ex = fmt.Errorf("%s", args[1])
-    }
-    errchannels[target] <- processError{ex, p.pid}
+	ex := fmt.Errorf("normal")
+	target := p.pid
+	if len(args) == 1 {
+		ex = fmt.Errorf("%s", args[0])
+	}
+	if len(args) > 1 {
+		target = args[0].AsPrimitive().(string)
+		ex = fmt.Errorf("%s", args[1])
+	}
+	errchannels[target] <- processError{ex, p.pid}
 	return nil, ex
 }
 
@@ -169,34 +169,34 @@ func string2symbol(p *process, env *Env, args []SExpression) (SExpression, error
 }
 
 func gensymFunc(p *process, env *Env, args []SExpression) (SExpression, error) {
-    return NewSymbol(gensym()), nil
+	return NewSymbol(gensym()), nil
 }
 
 // (eval expression [env]), defaults to env=env
 func eval(p *process, env *Env, args []SExpression) (SExpression, error) {
-    if len(args) > 1 {
-        env = args[1].AsPrimitive().(*Env)    
-    }
-    e, err := p.evalEnv(env, args[0])
-    if err != nil {
-        // TODO chez scheme uses error continuations
-        // need to figure out what I want to do here exactly
-        errchannels[p.pid] <- processError{err, p.pid}
-        return nil, err
-    }
-    return e, nil
+	if len(args) > 1 {
+		env = args[1].AsPrimitive().(*Env)
+	}
+	e, err := p.evalEnv(env, args[0])
+	if err != nil {
+		// TODO chez scheme uses error continuations
+		// need to figure out what I want to do here exactly
+		errchannels[p.pid] <- processError{err, p.pid}
+		return nil, err
+	}
+	return e, nil
 }
 
 func read(p *process, env *Env, args []SExpression) (SExpression, error) {
-    scanner := bufio.NewScanner(os.Stdin)
-    scanner.Scan()
-    return parse(scanner.Text())
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	return parse(scanner.Text())
 }
 
 func readString(p *process, env *Env, args []SExpression) (SExpression, error) {
-    return parse(args[0].AsPrimitive().(string))
+	return parse(args[0].AsPrimitive().(string))
 }
 
 func environment(p *process, env *Env, args []SExpression) (SExpression, error) {
-    return NewPrimitive(env), nil
+	return NewPrimitive(env), nil
 }

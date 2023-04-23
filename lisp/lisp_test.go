@@ -1,4 +1,4 @@
-package main
+package lisp
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 
 func TestLisp(t *testing.T) {
 	// NOTE: one shared global env for test, meaning order matters here!
-    main := newProcess()
+	main := newProcess()
 	env := GlobalEnv()
 	for i, tt := range []struct {
 		input string
@@ -120,14 +120,14 @@ func TestLisp(t *testing.T) {
 			want:  "(1 1 . 2)",
 		},
 	} {
-        p, err := parse(tt.input)
-        if err != nil {
-            t.Errorf("%d) parse error %v", i, err)
-        }
-        e, err := main.evalEnv(env, p)
-        if err != nil {
-            t.Errorf("%d) eval error %v", i, err)
-        }
+		p, err := parse(tt.input)
+		if err != nil {
+			t.Errorf("%d) parse error %v", i, err)
+		}
+		e, err := main.evalEnv(env, p)
+		if err != nil {
+			t.Errorf("%d) eval error %v", i, err)
+		}
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -136,10 +136,10 @@ func TestLisp(t *testing.T) {
 }
 
 func TestTailRecursion(t *testing.T) {
-    if testing.Short() {
-        t.Skip()
-    }
-    main := newProcess()
+	if testing.Short() {
+		t.Skip()
+	}
+	main := newProcess()
 	env := GlobalEnv()
 	for i, tt := range []struct {
 		input string
@@ -161,14 +161,14 @@ func TestTailRecursion(t *testing.T) {
 			want:  "500000500000",
 		},
 	} {
-        p, err := parse(tt.input)
-        if err != nil {
-            t.Errorf("%d) parse error %v", i, err)
-        }
-        e, err := main.evalEnv(env, p)
-        if err != nil {
-            t.Errorf("%d) eval error %v", i, err)
-        }
+		p, err := parse(tt.input)
+		if err != nil {
+			t.Errorf("%d) parse error %v", i, err)
+		}
+		e, err := main.evalEnv(env, p)
+		if err != nil {
+			t.Errorf("%d) eval error %v", i, err)
+		}
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

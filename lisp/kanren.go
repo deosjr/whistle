@@ -1,4 +1,4 @@
-package main
+package lisp
 
 // http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf
 // muKanren: A Minimal Functional Core for Relational Programming
@@ -72,25 +72,25 @@ var kanren = []string{
              ((null? s) (quote ()))
              (else (cons (car s) (take (- n 1) (cdr s)))))))))`,
 
-    `(define-syntax zzz
+	`(define-syntax zzz
        (syntax-rules ()
          ((_ g) (lambda (s/c) (lambda () (g s/c))))))`,
 
-    `(define-syntax conj+
+	`(define-syntax conj+
        (syntax-rules (zzz conj)
          ((_ g) (zzz g))
          ((_ g0 g ...) (conj (zzz g0) (conj+ g ...)))))`,
 
-    `(define-syntax disj+
+	`(define-syntax disj+
        (syntax-rules (zzz disj)
          ((_ g) (zzz g))
          ((_ g0 g ...) (disj (zzz g0) (disj+ g ...)))))`,
 
-    `(define-syntax conde
+	`(define-syntax conde
        (syntax-rules (disj+ conj+)
          ((_ (g0 g ...) ...) (disj+ (conj+ g0 g ...) ...)))) `,
 
-    `(define-syntax fresh
+	`(define-syntax fresh
        (syntax-rules (conj+ call/fresh)
          ((_ () g0 g ...) (conj+ g0 g ...))
          ((_ (x0 x ...) g0 g ...)

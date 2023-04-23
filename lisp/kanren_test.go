@@ -1,4 +1,4 @@
-package main
+package lisp
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 
 // examples taken from the paper
 func TestKanren(t *testing.T) {
-    main := newProcess()
+	main := newProcess()
 	env := GlobalEnv()
 	loadKanren(main, env)
 	for i, tt := range []struct {
@@ -46,13 +46,13 @@ func TestKanren(t *testing.T) {
 		},
 	} {
 		p, err := parse(tt.input)
-        if err != nil {
-            t.Errorf("%d) parse error %v", i, err)
-        }
+		if err != nil {
+			t.Errorf("%d) parse error %v", i, err)
+		}
 		e, err := main.evalEnv(env, p)
-        if err != nil {
-            t.Errorf("%d) eval error %v", i, err)
-        }
+		if err != nil {
+			t.Errorf("%d) eval error %v", i, err)
+		}
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -62,7 +62,7 @@ func TestKanren(t *testing.T) {
 
 // mostly documenting simpler behaviour so I can refer back to it while studying
 func TestLearnKanren(t *testing.T) {
-    main := newProcess()
+	main := newProcess()
 	env := GlobalEnv()
 	loadKanren(main, env)
 	for i, tt := range []struct {
@@ -240,45 +240,45 @@ func TestLearnKanren(t *testing.T) {
 			input: "(run* ((lambda (x) (bind ((five-six-seven x) empty-state) (seven-eight-nine x))) (var 0)))",
 			want:  "(7)",
 		},
-        {
-            // can we define an ifthenelse now that we know how mplus/bind work?
-            // would it be pure? why/why not? how does this work with infinite streams?
-            input: `(define ifthenelse (lambda (g1 g2 g3)
+		{
+			// can we define an ifthenelse now that we know how mplus/bind work?
+			// would it be pure? why/why not? how does this work with infinite streams?
+			input: `(define ifthenelse (lambda (g1 g2 g3)
                       (lambda (s/c)
                         (let ((s (pull (g1 s/c))))
                           (if (null? s)
                             (g3 s/c)
                             (bind s g2))))))`,
-        },
-        {
-            // commits to the goal it can satisfy (x==1), binding y==2 and never returns y==3
-            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (ifthenelse (equalo x 1) (equalo y 2) (equalo y 3)))))))",
-            want:  "(((((var . 1) . 2) ((var . 0) . 1)) . 2))",
-        },
-        {
-            // now the first goal fails, so we commit to the else clause of y==3.
-            // since the first goal failed, we know that x=\=1
-            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (equalo x 1) (equalo y 2) (equalo y 3))))))))",
-            want:  "(((((var . 1) . 3) ((var . 0) . 2)) . 2))",
-        },
-        {
-            // (AND x==2 ( IF (OR X==1 X==2) Y==2 Y==3 ))
-            // this returns x==2, y==2 and nothing else
-            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (disj (equalo x 1) (equalo x 2)) (equalo y 2) (equalo y 3))))))))",
-            want:  "(((((var . 1) . 2) ((var . 0) . 2)) . 2))",
-        },
-        {
-            // works with disj+ macro, which wraps inverse-eta-delay around all its goals (making them immature to start)
-            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (disj+ (equalo x 1) (equalo x 2)) (equalo y 2) (equalo y 3))))))))",
-            want:  "(((((var . 1) . 2) ((var . 0) . 2)) . 2))",
-        },
-        {
-            // turns out that was almost (but not quite) correct. Heres ifte from
-            // microKanren: A Lucid Little Logic Language with a Simple Complete Search
-            // ifte + once together constitute Prolog's cut operator, definitely impure (example?)
-            // note how loop is needed to properly work with infinite streams
-            // lots of extra overhead for not having some syntactic sugar but essence is the same
-            input: `(define ifte (lambda (g0 g1 g2)
+		},
+		{
+			// commits to the goal it can satisfy (x==1), binding y==2 and never returns y==3
+			input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (ifthenelse (equalo x 1) (equalo y 2) (equalo y 3)))))))",
+			want:  "(((((var . 1) . 2) ((var . 0) . 1)) . 2))",
+		},
+		{
+			// now the first goal fails, so we commit to the else clause of y==3.
+			// since the first goal failed, we know that x=\=1
+			input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (equalo x 1) (equalo y 2) (equalo y 3))))))))",
+			want:  "(((((var . 1) . 3) ((var . 0) . 2)) . 2))",
+		},
+		{
+			// (AND x==2 ( IF (OR X==1 X==2) Y==2 Y==3 ))
+			// this returns x==2, y==2 and nothing else
+			input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (disj (equalo x 1) (equalo x 2)) (equalo y 2) (equalo y 3))))))))",
+			want:  "(((((var . 1) . 2) ((var . 0) . 2)) . 2))",
+		},
+		{
+			// works with disj+ macro, which wraps inverse-eta-delay around all its goals (making them immature to start)
+			input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifthenelse (disj+ (equalo x 1) (equalo x 2)) (equalo y 2) (equalo y 3))))))))",
+			want:  "(((((var . 1) . 2) ((var . 0) . 2)) . 2))",
+		},
+		{
+			// turns out that was almost (but not quite) correct. Heres ifte from
+			// microKanren: A Lucid Little Logic Language with a Simple Complete Search
+			// ifte + once together constitute Prolog's cut operator, definitely impure (example?)
+			// note how loop is needed to properly work with infinite streams
+			// lots of extra overhead for not having some syntactic sugar but essence is the same
+			input: `(define ifte (lambda (g0 g1 g2)
                       (lambda (s/c)
                         (begin
                         (define loop (lambda (s)
@@ -287,15 +287,15 @@ func TestLearnKanren(t *testing.T) {
                             [(procedure? s) (lambda () (loop (s)))]
                             [else (bind g1 s)])))
                         (loop (g0 s/c))))))`,
-        },
-        {
-            // using ifte
-            input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifte (equalo x 1) (equalo y 2) (equalo y 3))))))))",
-            want:  "(((((var . 1) . 3) ((var . 0) . 2)) . 2))",
-        },
-        {
-            // and here is once/1. ifte(once(g0), g1, g2) is equivalent to cut
-            input: `(define once (lambda (g)
+		},
+		{
+			// using ifte
+			input: "(call/empty-state (call/fresh (lambda (x) (call/fresh (lambda (y) (conj (equalo x 2) (ifte (equalo x 1) (equalo y 2) (equalo y 3))))))))",
+			want:  "(((((var . 1) . 3) ((var . 0) . 2)) . 2))",
+		},
+		{
+			// and here is once/1. ifte(once(g0), g1, g2) is equivalent to cut
+			input: `(define once (lambda (g)
                       (lambda (s/c)
                         (begin
                         (define loop (lambda (s)
@@ -304,23 +304,23 @@ func TestLearnKanren(t *testing.T) {
                             [(procedure? s) (lambda () (loop (s)))]
                             [else (list (car s))])))
                         (loop (g s/c))))))`,
-        },
-        {
-            input: "(call/empty-state (call/fresh (lambda (x) (once (disj (equalo x 1) (equalo x 2))))))",
-            want:  "(((((var . 0) . 1)) . 1))",
-        },
-        // TODO: showcase ifte being impure
-        // I want to get to pure ifte but would need disequality constraints first
-        // Neumerkel/Kral (2016) - Indexing dif/2
+		},
+		{
+			input: "(call/empty-state (call/fresh (lambda (x) (once (disj (equalo x 1) (equalo x 2))))))",
+			want:  "(((((var . 0) . 1)) . 1))",
+		},
+		// TODO: showcase ifte being impure
+		// I want to get to pure ifte but would need disequality constraints first
+		// Neumerkel/Kral (2016) - Indexing dif/2
 	} {
 		p, err := parse(tt.input)
-        if err != nil {
-            t.Errorf("%d) parse error %v", i, err)
-        }
+		if err != nil {
+			t.Errorf("%d) parse error %v", i, err)
+		}
 		e, err := main.evalEnv(env, p)
-        if err != nil {
-            t.Errorf("%d) eval error %v", i, err)
-        }
+		if err != nil {
+			t.Errorf("%d) eval error %v", i, err)
+		}
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
@@ -329,56 +329,56 @@ func TestLearnKanren(t *testing.T) {
 }
 
 func TestKanrenDCG(t *testing.T) {
-    main := newProcess()
+	main := newProcess()
 	env := GlobalEnv()
 	loadKanren(main, env)
 	for i, tt := range []struct {
 		input string
 		want  string
 	}{
-        {
-            input: "(define conso (lambda (a b l) (equalo (cons a b) l)))",
-        },
-        {
-            // NOTE: alternate clause should have l =!= emptylist I think?
-            // list l is equal to difference list lx/x
-            input: `(define diflist (lambda (l lx x)
+		{
+			input: "(define conso (lambda (a b l) (equalo (cons a b) l)))",
+		},
+		{
+			// NOTE: alternate clause should have l =!= emptylist I think?
+			// list l is equal to difference list lx/x
+			input: `(define diflist (lambda (l lx x)
                       (conde
                         [(equalo (quote ()) l) (equalo lx x)]
                         [(fresh (a d xx)
                            (conso a d l)
                            (diflist d xx x)
                            (conso a xx lx))])))`,
-        },
-        {
-            input: `(define appendo (lambda (a b c d e f)
+		},
+		{
+			input: `(define appendo (lambda (a b c d e f)
                       (conj+ (equalo a e) (equalo b c) (equalo d f))))`,
-        },
-        {
-            input: `(run* (fresh (q a x b y c z)
+		},
+		{
+			input: `(run* (fresh (q a x b y c z)
                             (diflist (list 1 2) a x)
                             (diflist (list 3 4) b y)
                             (equalo z (quote ()))
                             (equalo c q)
                             (appendo a x b y c z)))`,
-            want: "((1 2 3 4))",
-        },
-        {
-            // diverges at (run 6) or (run*)
-            input: `(run 5 (fresh (q p a x b y c z)
+			want: "((1 2 3 4))",
+		},
+		{
+			// diverges at (run 6) or (run*)
+			input: `(run 5 (fresh (q p a x b y c z)
                             (diflist q a x)
                             (diflist p b y)
                             (diflist (list 1 2 3 4) c z)
                             (equalo z (quote ()))
                             (appendo a x b y c z)))`,
-            want: "(() (1) (1 2) (1 2 3) (1 2 3 4))",
-        },
-        // TODO: build a --> macro or equivalent to play around with macros?
-        // maybe smth like (dcg <head> --> <body> <body> ...) with --> optionally as a literal ?
-        // FIRST ATTEMPT: (head body) where body is a list constant
-        // and (head b1 b2 b3 ...) where each b is another dcg function
-        {
-            input: `(define-syntax dcg
+			want: "(() (1) (1 2) (1 2 3) (1 2 3 4))",
+		},
+		// TODO: build a --> macro or equivalent to play around with macros?
+		// maybe smth like (dcg <head> --> <body> <body> ...) with --> optionally as a literal ?
+		// FIRST ATTEMPT: (head body) where body is a list constant
+		// and (head b1 b2 b3 ...) where each b is another dcg function
+		{
+			input: `(define-syntax dcg
                       (syntax-rules (diflist fresh dcg_)
                         ((_ head body)
                            (define head (lambda (ax x)
@@ -388,68 +388,68 @@ func TestKanrenDCG(t *testing.T) {
                              (fresh (y)
                                (body1 ax y)
                                  (dcg_ y x body2 body3 ...)))))))`,
-        },
-        // used as an implementation detail for the main dcg macro
-        {
-            input: `(define-syntax dcg_
+		},
+		// used as an implementation detail for the main dcg macro
+		{
+			input: `(define-syntax dcg_
                       (syntax-rules (fresh)
                         ((_ prev end b1)
                            (b1 prev end))
                         ((_ prev end b1 b2 b3 ...)
                            (fresh (x) (b1 prev x) (dcg_ x end b2 b3 ...)))))`,
-        },
-        {
-            input: `(define phrase (lambda (dcgbody l)
+		},
+		{
+			input: `(define phrase (lambda (dcgbody l)
                       (fresh (lx x)
                         (diflist l lx x)
                         (equalo x (quote ()))
                         (dcgbody lx x))))`,
-        },
-        {
-            input: "(dcg a (list 1 2 3 4))",
-        },
-        {
-            // diverges beyond 1, but why?
-            input: "(run 1 (fresh (q) (phrase a q)))",
-            want: "((1 2 3 4))",
-        },
-        {
-            // does _not_ diverge: use of diflist/3 is the problem
-            // possibly because of the missing 'not' in the alternate clause
-            input: "(run* (fresh (q) (a q (quote ()))))",
-            want: "((1 2 3 4))",
-        },
-        {
-            input: `(define phrase (lambda (dcgbody l)
+		},
+		{
+			input: "(dcg a (list 1 2 3 4))",
+		},
+		{
+			// diverges beyond 1, but why?
+			input: "(run 1 (fresh (q) (phrase a q)))",
+			want:  "((1 2 3 4))",
+		},
+		{
+			// does _not_ diverge: use of diflist/3 is the problem
+			// possibly because of the missing 'not' in the alternate clause
+			input: "(run* (fresh (q) (a q (quote ()))))",
+			want:  "((1 2 3 4))",
+		},
+		{
+			input: `(define phrase (lambda (dcgbody l)
                       (dcgbody l (quote ()))))`,
-        },
-        {
-            // no longer diverges
-            input: "(run* (fresh (q) (phrase a q)))",
-            want: "((1 2 3 4))",
-        },
-        {
-            input: "(dcg a b c)",
-        },
-        {
-            input: "(dcg b (list 1 2 3 4))",
-        },
-        {
-            input: "(dcg c (list 5 6 7))",
-        },
-        {
-            input: "(run* (fresh (q) (phrase a q)))",
-            want: "((1 2 3 4 5 6 7))",
-        },
-        // NOTE: just found https://staff.fnwi.uva.nl/c.u.grelck/nl-fp-talks/kourzanov.pdf
-        // which does something similar (?) and way more (??)
-        // most importantly tries to solve left-recursion issues going beyond prolog dcg
+		},
+		{
+			// no longer diverges
+			input: "(run* (fresh (q) (phrase a q)))",
+			want:  "((1 2 3 4))",
+		},
+		{
+			input: "(dcg a b c)",
+		},
+		{
+			input: "(dcg b (list 1 2 3 4))",
+		},
+		{
+			input: "(dcg c (list 5 6 7))",
+		},
+		{
+			input: "(run* (fresh (q) (phrase a q)))",
+			want:  "((1 2 3 4 5 6 7))",
+		},
+		// NOTE: just found https://staff.fnwi.uva.nl/c.u.grelck/nl-fp-talks/kourzanov.pdf
+		// which does something similar (?) and way more (??)
+		// most importantly tries to solve left-recursion issues going beyond prolog dcg
 
-        // SECOND ATTEMPT: (head body) where body is another dcg function OR a list constant
-        // and (head b1 b2 b3 ...) where each b is another dcg function OR a list constant
-        // NOTE: we cannot define alternatives yet!
-        {
-            input: `(define-syntax dcg
+		// SECOND ATTEMPT: (head body) where body is another dcg function OR a list constant
+		// and (head b1 b2 b3 ...) where each b is another dcg function OR a list constant
+		// NOTE: we cannot define alternatives yet!
+		{
+			input: `(define-syntax dcg
                       (syntax-rules (diflist fresh dcg_)
                         ((_ head (b ...))
                            (define head (lambda (ax x)
@@ -467,12 +467,12 @@ func TestKanrenDCG(t *testing.T) {
                              (fresh (y)
                                (body1 ax y)
                                  (dcg_ y x body2 body3 ...)))))))`,
-        },
-        {
-            // how hygienic is my current syntax-rules implementation really?!
-            // answer: not very. hygienic macros do a _lot_ more wrt the evaluation env
-            // TODO: use env in macro-expand, allow builtins and gensym free vars
-            input: `(define-syntax dcg_
+		},
+		{
+			// how hygienic is my current syntax-rules implementation really?!
+			// answer: not very. hygienic macros do a _lot_ more wrt the evaluation env
+			// TODO: use env in macro-expand, allow builtins and gensym free vars
+			input: `(define-syntax dcg_
                       (syntax-rules (diflist fresh)
                         ((_ prev end (b ...))
                            (diflist (b ...) prev end))
@@ -482,73 +482,73 @@ func TestKanrenDCG(t *testing.T) {
                            (fresh (x) (diflist (b ...) prev x) (dcg_ x end b2 b3 ...)))
                         ((_ prev end b1 b2 b3 ...)
                            (fresh (x) (b1 prev x) (dcg_ x end b2 b3 ...)))))`,
-        },
-        {
-            input: "(dcg a b c b)",
-        },
-        {
-            input: "(dcg b c (list 1))",
-        },
-        {
-            input: "(dcg c (list 2))",
-        },
-        {
-            input: "(run* (fresh (q) (phrase a q)))",
-            want: "((2 1 2 2 1))",
-        },
-        {
-            input: "(dcg fourlists (list 1) (list 2) (list 3) (list 4))",
-        },
-        {
-            input: "(run 1 (fresh (q) (phrase fourlists q)))",
-            want:  "((1 2 3 4))",
-        },
-        // THIRD ATTEMPT using alternatives
-        {
-            input: `(define-syntax dcg
+		},
+		{
+			input: "(dcg a b c b)",
+		},
+		{
+			input: "(dcg b c (list 1))",
+		},
+		{
+			input: "(dcg c (list 2))",
+		},
+		{
+			input: "(run* (fresh (q) (phrase a q)))",
+			want:  "((2 1 2 2 1))",
+		},
+		{
+			input: "(dcg fourlists (list 1) (list 2) (list 3) (list 4))",
+		},
+		{
+			input: "(run 1 (fresh (q) (phrase fourlists q)))",
+			want:  "((1 2 3 4))",
+		},
+		// THIRD ATTEMPT using alternatives
+		{
+			input: `(define-syntax dcg
                       (syntax-rules (conde dcg_)
                         ((_ head (b ...) ...)
                            (define head (lambda (ax x)
                              (conde [(dcg_ ax x b ...)] ...))))))`,
-        },
-        {
-            // now we get to declare alternatives, each in a separate pair
-            // ones --> ( [] ) ; ( [1], ones )
-            input: "(dcg ones ( (list) ) ( (list 1) ones ) )",
-        },
-        {
-            input: "(run 3 (fresh (q) (phrase ones q)))",
-            want: "(() (1) (1 1))",
-        },
-        {
-            input: "(dcg threelists ( (list 1) (list 2) (list 3)) )",
-        },
-        {
-            input: "(run 1 (fresh (q) (phrase threelists q)))",
-            want:  "((1 2 3))",
-        },
-        // FOURTH ATTEMPT including mandatory fresh variable declaration 
-        // TODO: (e) should be (vars ...), but ellipsis nesting check is a problem here
-        {
-            input: `(define-syntax dcg
+		},
+		{
+			// now we get to declare alternatives, each in a separate pair
+			// ones --> ( [] ) ; ( [1], ones )
+			input: "(dcg ones ( (list) ) ( (list 1) ones ) )",
+		},
+		{
+			input: "(run 3 (fresh (q) (phrase ones q)))",
+			want:  "(() (1) (1 1))",
+		},
+		{
+			input: "(dcg threelists ( (list 1) (list 2) (list 3)) )",
+		},
+		{
+			input: "(run 1 (fresh (q) (phrase threelists q)))",
+			want:  "((1 2 3))",
+		},
+		// FOURTH ATTEMPT including mandatory fresh variable declaration
+		// TODO: (e) should be (vars ...), but ellipsis nesting check is a problem here
+		{
+			input: `(define-syntax dcg
                       (syntax-rules (conde fresh dcg_)
                         ((_ head (e) (b ...) ...)
                            (define head (lambda (ax x)
                              (conde [(fresh (e) (dcg_ ax x b ...))] ...)))))))`,
-        },
-        {
-            input: `(dcg palindrome (e)
+		},
+		{
+			input: `(dcg palindrome (e)
                       ((list))
                       ((list e))
                       ((list e) palindrome (list e)))`,
-        },
-        {
-            input: "(run 9 (fresh (q) (phrase palindrome q)))",
-            want: "(() (_.0) (_.0 _.0) (_.0 _.1 _.0) (_.0 _.1 _.1 _.0) (_.0 _.1 _.2 _.1 _.0) (_.0 _.1 _.2 _.2 _.1 _.0) (_.0 _.1 _.2 _.3 _.2 _.1 _.0) (_.0 _.1 _.2 _.3 _.3 _.2 _.1 _.0))",
-        },
-        // FIFTH ATTEMPT includes escaping dcg context for normal goal execution
-        {
-            input: `(define-syntax dcg_
+		},
+		{
+			input: "(run 9 (fresh (q) (phrase palindrome q)))",
+			want:  "(() (_.0) (_.0 _.0) (_.0 _.1 _.0) (_.0 _.1 _.1 _.0) (_.0 _.1 _.2 _.1 _.0) (_.0 _.1 _.2 _.2 _.1 _.0) (_.0 _.1 _.2 _.3 _.2 _.1 _.0) (_.0 _.1 _.2 _.3 _.3 _.2 _.1 _.0))",
+		},
+		// FIFTH ATTEMPT includes escaping dcg context for normal goal execution
+		{
+			input: `(define-syntax dcg_
                       (syntax-rules (diflist fresh escape conj+)
                         ((_ prev end (b ...))
                            (diflist (b ...) prev end))
@@ -560,28 +560,28 @@ func TestKanrenDCG(t *testing.T) {
                            (fresh (x) (diflist (b ...) prev x) (dcg_ x end b2 b3 ...)))
                         ((_ prev end b1 b2 b3 ...)
                            (fresh (x) (b1 prev x) (dcg_ x end b2 b3 ...)))))`,
-        },
-        {
-            input: `(dcg palindrome (e)
+		},
+		{
+			input: `(dcg palindrome (e)
                       ((list))
                       ((escape (disj (equalo e 1) (equalo e 2))) (list e))
                       ((escape (disj (equalo e 1) (equalo e 2))) (list e) palindrome (list e)))`,
-        },
-        {
-            input: "(run 9 (fresh (q) (phrase palindrome q)))",
-            want: "(() (1) (2) (1 1) (2 2) (1 1 1) (2 1 2) (1 2 1) (2 2 2))",
-        },
-        {
-        // SIXTH ATTEMPT: taking arguments and using 'list' only for explicit lists 
-        // TODO: (arg) should be (args ...) and (u v) should be (vars ...), but ellipsis nesting check is a problem here
-            input: `(define-syntax dcg
+		},
+		{
+			input: "(run 9 (fresh (q) (phrase palindrome q)))",
+			want:  "(() (1) (2) (1 1) (2 2) (1 1 1) (2 1 2) (1 2 1) (2 2 2))",
+		},
+		{
+			// SIXTH ATTEMPT: taking arguments and using 'list' only for explicit lists
+			// TODO: (arg) should be (args ...) and (u v) should be (vars ...), but ellipsis nesting check is a problem here
+			input: `(define-syntax dcg
                       (syntax-rules (conde fresh dcg_)
                         ((_ head (arg) (u v) (b ...) ...)
                            (define head (lambda (arg ax x)
                              (conde [(fresh (u v) (dcg_ ax x b ...))] ...)))))))`,
-        },
-        {
-            input: `(define-syntax dcg_
+		},
+		{
+			input: `(define-syntax dcg_
                       (syntax-rules (diflist fresh escape conj+ list)
                         ((_ prev end (list b ...))
                            (diflist (list b ...) prev end))
@@ -593,27 +593,27 @@ func TestKanrenDCG(t *testing.T) {
                            (fresh (x) (diflist (list b ...) prev x) (dcg_ x end b2 b3 ...)))
                         ((_ prev end (b ...) b2 b3 ...)
                            (fresh (x) (b ... prev x) (dcg_ x end b2 b3 ...)))))`,
-        },
-        {
-            input: `(dcg reversal (l) (a d)
+		},
+		{
+			input: `(dcg reversal (l) (a d)
                       ((escape (equalo l (quote ()))) (list))
                       ((escape (conso a d l)) (reversal d) (list a)))`,
-        },
-        {
-            // TODO: phrase with dcgbody taking args
-            // NOTE: right now run* diverges
-            input: "(run 1 (fresh (q r) (equalo r (list 1 2 3 4)) (reversal q r (quote ()))))",
-            want:  "((4 3 2 1))",
-        },
-    } {
+		},
+		{
+			// TODO: phrase with dcgbody taking args
+			// NOTE: right now run* diverges
+			input: "(run 1 (fresh (q r) (equalo r (list 1 2 3 4)) (reversal q r (quote ()))))",
+			want:  "((4 3 2 1))",
+		},
+	} {
 		p, err := parse(tt.input)
-        if err != nil {
-            t.Errorf("%d) parse error %v", i, err)
-        }
+		if err != nil {
+			t.Errorf("%d) parse error %v", i, err)
+		}
 		e, err := main.evalEnv(env, p)
-        if err != nil {
-            t.Errorf("%d) eval error %v", i, err)
-        }
+		if err != nil {
+			t.Errorf("%d) eval error %v", i, err)
+		}
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)

@@ -14,14 +14,6 @@ import (
 // For this second attempt we will spawn each process with a copy of the env
 // in which the process was spawned, and storing '$PID' on the process struct
 
-func New() (*process, *Env) {
-	p := newProcess()
-	env := GlobalEnv()
-	loadKanren(p, env)
-	loadErlang(p, env)
-	return p, env
-}
-
 type process struct {
 	sync.Mutex
 	pid     string
@@ -69,10 +61,6 @@ func newProcess() *process {
 		}
 	}()
 	return p
-}
-
-func (p *process) Eval(env *Env, input string) (SExpression, error) {
-	return p.evalEnv(env, mustParse(input))
 }
 
 var mailboxes = make(map[string]chan SExpression)

@@ -13,11 +13,13 @@ func GlobalEnv() *Env {
 		"+":              builtinFunc(add),
 		"-":              builtinFunc(sub),
 		"*":              builtinFunc(mul),
+		"/":              builtinFunc(div),
 		"=":              builtinFunc(eq),
 		"<":              builtinFunc(lt),
 		">":              builtinFunc(gt),
 		"<=":             builtinFunc(leq),
 		">=":             builtinFunc(geq),
+		"mod":            builtinFunc(mod),
 		"#t":             NewPrimitive(true),
 		"#f":             NewPrimitive(false),
 		"pi":             NewPrimitive(math.Pi),
@@ -40,6 +42,7 @@ func GlobalEnv() *Env {
 		"read":           builtinFunc(read),
 		"read-string":    builtinFunc(readString),
 		"environment":    builtinFunc(environment),
+		"listing":        builtinFunc(listing),
 	}, outer: nil}
 }
 
@@ -64,6 +67,10 @@ func mul(p *process, env *Env, args []SExpression) (SExpression, error) {
 	return NewPrimitive(args[0].AsNumber() * args[1].AsNumber()), nil
 }
 
+func div(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].AsNumber() / args[1].AsNumber()), nil
+}
+
 func eq(p *process, env *Env, args []SExpression) (SExpression, error) {
 	return NewPrimitive(args[0].AsNumber() == args[1].AsNumber()), nil
 }
@@ -82,6 +89,10 @@ func leq(p *process, env *Env, args []SExpression) (SExpression, error) {
 
 func geq(p *process, env *Env, args []SExpression) (SExpression, error) {
 	return NewPrimitive(args[0].AsNumber() >= args[1].AsNumber()), nil
+}
+
+func mod(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(math.Mod(args[0].AsNumber(), args[1].AsNumber())), nil
 }
 
 func isnumber(p *process, env *Env, args []SExpression) (SExpression, error) {
@@ -199,4 +210,24 @@ func readString(p *process, env *Env, args []SExpression) (SExpression, error) {
 
 func environment(p *process, env *Env, args []SExpression) (SExpression, error) {
 	return NewPrimitive(env), nil
+}
+
+func listing(p *process, env *Env, args []SExpression) (SExpression, error) {
+	s := args[0].AsSymbol()
+	e, ok := env.find(s)
+	if !ok {
+		return NewPrimitive(false), nil
+	}
+	sexp := e.dict[s]
+	if !sexp.IsProcedure() {
+		return NewPrimitive(false), nil
+	}
+	proc := sexp.AsProcedure()
+	if proc.isBuiltin {
+		fmt.Printf("builtin func %s\n", s)
+		return NewPrimitive(true), nil
+	}
+	f := proc.defined()
+	fmt.Printf("(define %s (lambda %s %s)", s, f.params, f.body)
+	return NewPrimitive(true), nil
 }

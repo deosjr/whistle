@@ -139,6 +139,9 @@ func isequivalent(p *process, env *Env, args []SExpression) (SExpression, error)
 }
 
 func display(p *process, env *Env, args []SExpression) (SExpression, error) {
+	if args[0] == nil {
+		return NewPrimitive(true), nil
+	}
 	if args[0].IsPrimitive() {
 		if s, ok := args[0].AsPrimitive().(string); ok {
 			fmt.Print(s)
@@ -159,7 +162,7 @@ func exit(p *process, env *Env, args []SExpression) (SExpression, error) {
 		target = args[0].AsPrimitive().(string)
 		ex = fmt.Errorf("%s", args[1])
 	}
-	errchannels[target] <- processError{ex, p.pid}
+	errchannels[target] <- processError{err: ex, pid: p.pid}
 	return nil, ex
 }
 
@@ -188,12 +191,27 @@ func eval(p *process, env *Env, args []SExpression) (SExpression, error) {
 	if len(args) > 1 {
 		env = args[1].AsPrimitive().(*Env)
 	}
-	e, err := p.evalEnv(env, args[0])
-	if err != nil {
-		// TODO chez scheme uses error continuations
-		// need to figure out what I want to do here exactly
-		errchannels[p.pid] <- processError{err, p.pid}
-		return nil, err
+	var e SExpression
+	var perr processError
+	if p.evalWithContinuation {
+		id := func(x SExpression) SExpression { return x }
+		e = p.evalEnvK(env, args[0], id)
+		/*
+		   // TODO: enable to make evalK work with erlang err msg passing
+		   if e != nil && e.IsPrimitive() {
+		       if err, ok := e.AsPrimitive().(processError); ok {
+		           perr = err
+		       }
+		   }
+		*/
+	} else {
+		ev, err := p.evalEnv(env, args[0])
+		e = ev
+		perr = processError{err: err, pid: p.pid}
+	}
+	if perr.err != nil {
+		errchannels[p.pid] <- perr
+		return nil, perr.err
 	}
 	return e, nil
 }

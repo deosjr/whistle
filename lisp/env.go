@@ -189,25 +189,26 @@ type continuation func(SExpression) SExpression
 
 // TODO: representing an error as an SExpression that includes error msg,
 // but also continuation and value!
+// NOTE: instead of evalEnv above, here we'll reify error+continuation as an SExpression
 // TODO: add back tail recursion!?
 func (p *process) evalEnvK(env *Env, e SExpression, k continuation) SExpression {
-    if e.IsProcedure() {
-	    return k(e)
-    }
+	if e.IsProcedure() {
+		return k(e)
+	}
 	if e.IsPair() {
 		if e.AsPair() == empty {
-               panic("invalid syntax ()")
+			return p.Errorf(k, e, "invalid syntax ()")
 		}
 		ex, ok := expandMacro(e.AsPair())
 		if ok {
-            return p.evalEnvK(env, ex, k)
+			return p.evalEnvK(env, ex, k)
 		}
 	}
 	if e.IsAtom() {
 		if e.IsSymbol() {
 			ed, ok := env.find(e.AsSymbol())
 			if !ok {
-				panic(fmt.Sprintf("variable %s is not bound", e.AsSymbol()))
+				return p.Errorf(k, e, "variable %s is not bound", e.AsSymbol())
 			}
 			return k(ed.dict[e.AsSymbol()])
 		}
@@ -227,38 +228,38 @@ func (p *process) evalEnvK(env *Env, e SExpression, k continuation) SExpression 
 		case "if":
 			test := ep.cadr()
 			conseq := ep.caddr()
-            return p.evalEnvK(env, test, func(tested SExpression) SExpression {
-                if isTruthy(tested) {
-                    return p.evalEnvK(env, conseq, k)
-                }
-			    if ep.cdddr().AsPair() == empty {
-                    return k(NewPrimitive(false))
-                }
-			    alt := ep.cadddr()
-                return p.evalEnvK(env, alt, k)
-            })
+			return p.evalEnvK(env, test, func(tested SExpression) SExpression {
+				if isTruthy(tested) {
+					return p.evalEnvK(env, conseq, k)
+				}
+				if ep.cdddr().AsPair() == empty {
+					return k(NewPrimitive(false))
+				}
+				alt := ep.cadddr()
+				return p.evalEnvK(env, alt, k)
+			})
 		case "begin":
-            // guaranteed in parsing to not be empty
-            var begin func(Pair) SExpression
-            begin = func(args Pair) SExpression {
-                if args.cdr().AsPair() == empty {
-                    return p.evalEnvK(env, args.car(), k)
-                }
-                return p.evalEnvK(env, args.car(), func(SExpression) SExpression {
-                    return begin(args.cdr().AsPair())
-                })
-            }
-            epargs := ep.cdr().AsPair()
-            return begin(epargs)
+			// guaranteed in parsing to not be empty
+			var begin func(Pair) SExpression
+			begin = func(args Pair) SExpression {
+				if args.cdr().AsPair() == empty {
+					return p.evalEnvK(env, args.car(), k)
+				}
+				return p.evalEnvK(env, args.car(), func(SExpression) SExpression {
+					return begin(args.cdr().AsPair())
+				})
+			}
+			epargs := ep.cdr().AsPair()
+			return begin(epargs)
 		case "quote":
 			return k(ep.cadr())
 		case "define":
 			sym := ep.cadr().AsSymbol()
 			exp := ep.caddr()
 			return p.evalEnvK(env, exp, func(evalled SExpression) SExpression {
-			    env.dict[sym] = evalled
-                return k(nil)
-            })
+				env.dict[sym] = evalled
+				return k(nil)
+			})
 		case "define-syntax":
 			keyword := ep.cadr().AsSymbol()
 			transformer := ep.caddr().AsPair()
@@ -267,15 +268,15 @@ func (p *process) evalEnvK(env *Env, e SExpression, k continuation) SExpression 
 		case "macroexpand":
 			expanded, _ := expandMacro(ep.cadr().AsPair())
 			return k(expanded)
-        case "call/cc":
-            // takes as argument a function f that in turn only takes one arg,
-            // which is assumed to be a continuation object c
-            // if this continuation is evaluated, it overwrites k arg on process
-            // call/cc itself returns f applied to c or (f c)
-            f := ep.cadr()
-            c := NewPrimitive(k)
-            fc := list2cons(f, c)
-            return p.evalEnvK(env, fc, k)
+		case "call/cc":
+			// takes as argument a function f that in turn only takes one arg,
+			// which is assumed to be a continuation object c
+			// if this continuation is evaluated, it overwrites k arg on process
+			// call/cc itself returns f applied to c or (f c)
+			f := ep.cadr()
+			c := NewPrimitive(k)
+			fc := list2cons(f, c)
+			return p.evalEnvK(env, fc, k)
 		case "lambda":
 			params := ep.cadr().AsPair()
 			body := ep.caddr()
@@ -290,41 +291,43 @@ func (p *process) evalEnvK(env *Env, e SExpression, k continuation) SExpression 
 		}
 	}
 	// procedure call
-    args := []SExpression{}
-    var evalArgs func(Proc, Pair) SExpression
-    evalArgs = func(proc Proc, pargs Pair) SExpression {
-        if pargs == empty {
-            // were done, apply the function!
-            if proc.isBuiltin {
-                // TODO: ignoring error, builtins in cps shouldnt return errs separately
-                ex, _ := proc.builtin()(p, env, args)
-                return k(ex)
-            }
-            defproc := proc.defined()
-            newenv := newEnv(defproc.params, args, defproc.env)
-            return p.evalEnvK(newenv, defproc.body, k)
-        }
-        // continue evalling arguments
-        return p.evalEnvK(env, pargs.car(), func(evalled SExpression) SExpression {
-            args = append(args, evalled)
-            return evalArgs(proc, pargs.cdr().AsPair())
-        })
-    }
-    return p.evalEnvK(env, car, func(f SExpression) SExpression {
-        // applying continuation completely ignores previous k
-        if f.IsPrimitive() {
-            if c, ok := f.AsPrimitive().(continuation); ok {
-                arg := ep.cadr()
-                return p.evalEnvK(env, arg, c)
-            }
-        }
-	    if !f.IsProcedure() {
-		    panic(fmt.Sprintf("attempt to apply non-procedure %s", f))
-	    }
-	    proc := f.AsProcedure()
-	    pargs := ep.cdr().AsPair()
-        return evalArgs(proc, pargs)
-    })
+	args := []SExpression{}
+	var evalArgs func(Proc, Pair) SExpression
+	evalArgs = func(proc Proc, pargs Pair) SExpression {
+		if pargs == empty {
+			// were done, apply the function!
+			if proc.isBuiltin {
+				ex, err := proc.builtin()(p, env, args)
+				if err != nil {
+					return p.Errorf(k, e, err.Error())
+				}
+				return k(ex)
+			}
+			defproc := proc.defined()
+			newenv := newEnv(defproc.params, args, defproc.env)
+			return p.evalEnvK(newenv, defproc.body, k)
+		}
+		// continue evalling arguments
+		return p.evalEnvK(env, pargs.car(), func(evalled SExpression) SExpression {
+			args = append(args, evalled)
+			return evalArgs(proc, pargs.cdr().AsPair())
+		})
+	}
+	return p.evalEnvK(env, car, func(f SExpression) SExpression {
+		// applying continuation completely ignores previous k
+		if f.IsPrimitive() {
+			if c, ok := f.AsPrimitive().(continuation); ok {
+				arg := ep.cadr()
+				return p.evalEnvK(env, arg, c)
+			}
+		}
+		if !f.IsProcedure() {
+			return p.Errorf(k, e, "attempt to apply non-procedure %s", f)
+		}
+		proc := f.AsProcedure()
+		pargs := ep.cdr().AsPair()
+		return evalArgs(proc, pargs)
+	})
 }
 
 func copyEnv(env *Env) *Env {

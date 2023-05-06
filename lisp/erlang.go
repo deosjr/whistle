@@ -20,13 +20,18 @@ type process struct {
 	mailbox []SExpression
 	err     error
 	// process flags
-	trapExit bool
+	trapExit             bool
+	evalWithContinuation bool
 	// TODO: rand seed, etc
 }
 
 type processError struct {
 	err error
 	pid string
+	// if we encounter error and we are in evalK, we can restore
+	// using value under evaluation (v) and continuation (k)
+	k continuation
+	v SExpression
 }
 
 func newProcess() *process {
@@ -61,6 +66,15 @@ func newProcess() *process {
 		}
 	}()
 	return p
+}
+
+func (p *process) Errorf(k continuation, v SExpression, s string, args ...any) SExpression {
+	return NewPrimitive(processError{
+		err: fmt.Errorf(s, args...),
+		pid: p.pid,
+		k:   k,
+		v:   v,
+	})
 }
 
 var mailboxes = make(map[string]chan SExpression)
@@ -241,10 +255,14 @@ func receive(p *process, env *Env, args []SExpression) (SExpression, error) {
 
 func processFlag(p *process, env *Env, args []SExpression) (SExpression, error) {
 	flag := args[0].AsSymbol()
-	if flag != "trap_exit" {
+	b := args[1].AsPrimitive().(bool)
+	switch flag {
+	case "trap_exit":
+		p.trapExit = b
+	case "eval_with_continuation":
+		p.evalWithContinuation = b
+	default:
 		return nil, fmt.Errorf("unknown process flag %s", flag)
 	}
-	b := args[1].AsPrimitive().(bool)
-	p.trapExit = b
 	return NewPrimitive(true), nil
 }

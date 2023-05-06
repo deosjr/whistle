@@ -6,52 +6,62 @@ import (
 
 func TestCallCC(t *testing.T) {
 	main := New()
+	main.process.evalWithContinuation = true
 	for i, tt := range []struct {
 		input string
 		want  string
 	}{
+		{
+			input: "(define f (lambda (return) (begin (return 2) 3)))",
+		},
+		{
+			input: "(f (lambda (x) x))",
+			want:  "3",
+		},
+		{
+			input: "(call/cc f)",
+			want:  "2",
+		},
         {
-            input: "(define f (lambda (return) (begin (return 2) 3)))",
+            input: "(+ 1 (call/cc (lambda (cc) (+ 20 300))))",
+            want:  "321",
         },
         {
-            input: "(f (lambda (x) x))",
-            want:  "3",
+            input: "(+ 1 (call/cc (lambda (cc) (+ 20 (cc 300)))))",
+            want:  "301",
         },
-        {
-            input: "(call/cc f)",
-            want:  "2",
-        },
-    }{
-        t.Log(tt.input)
-		e, err := main.EvalK(tt.input)
+	} {
+		t.Log(tt.input)
+		e, err := main.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) parse error %v", i, err)
 		}
-        if e == nil && tt.want == "" {
-            continue
-        }
+		if e == nil && tt.want == "" {
+			continue
+		}
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
 		}
-    }
+	}
 }
 
-func TestCSP(t *testing.T) {
+func TestCPS(t *testing.T) {
 	main := New()
+	main.process.evalWithContinuation = true
 	for i, tt := range []struct {
 		input string
 		want  string
 	}{
-        {
-            input: `(define *& (lambda (x y k) 
+		{
+			input: `(define *& (lambda (x y k) 
                 (k (* x y)))) `,
-        },
-        {
-            input: "(*& 6 7 (lambda (x) x))",
-            want:  "42",
-        },
-            // copied from lisp_test.go
+		},
+		{
+			input: "(*& 6 7 (lambda (x) x))",
+			want:  "42",
+		},
+		// copied from lisp_test.go
 		{
 			input: "(begin (define r 10) (* pi (* r r)))",
 			want:  "314.1592653589793",
@@ -159,17 +169,17 @@ func TestCSP(t *testing.T) {
 			input: "(cons 1 (cons 1 2))",
 			want:  "(1 1 . 2)",
 		},
-    }{
-		e, err := main.EvalK(tt.input)
+	} {
+		e, err := main.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) parse error %v", i, err)
 		}
-        if e == nil && tt.want == "" {
-            continue
-        }
+		if e == nil && tt.want == "" {
+			continue
+		}
 		got := e.String()
 		if got != tt.want {
 			t.Errorf("%d) got %s want %s", i, got, tt.want)
 		}
-    }
+	}
 }

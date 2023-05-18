@@ -133,6 +133,17 @@ Loop:
 				}
 				env.dict[sym] = evalled
 				return NewPrimitive(false), nil
+			case "set!":
+				sym := ep.cadr().AsSymbol()
+				exp := ep.caddr()
+				evalled, err := p.evalEnv(env, exp)
+				if err != nil {
+					return nil, err
+				}
+                // TODO: will silently fail if not found
+                // check output bool if you want a proper error
+                env.replace(sym, evalled)
+				return NewPrimitive(false), nil
 			case "define-syntax":
 				keyword := ep.cadr().AsSymbol()
 				transformer := ep.caddr().AsPair()
@@ -258,6 +269,15 @@ func (p *process) evalEnvK(env *Env, e SExpression, k continuation) SExpression 
 			exp := ep.caddr()
 			return p.evalEnvK(env, exp, func(evalled SExpression) SExpression {
 				env.dict[sym] = evalled
+				return k(nil)
+			})
+		case "set!":
+			sym := ep.cadr().AsSymbol()
+			exp := ep.caddr()
+			return p.evalEnvK(env, exp, func(evalled SExpression) SExpression {
+                // TODO: will silently fail if not found
+                // check output bool if you want a proper error
+                env.replace(sym, evalled)
 				return k(nil)
 			})
 		case "define-syntax":

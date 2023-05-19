@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"strings"
 )
 
 func GlobalEnv() *Env {
@@ -26,6 +27,7 @@ func GlobalEnv() *Env {
 		"newline":        NewPrimitive("\n"),
 		"number?":        builtinFunc(isnumber),
 		"pair?":          builtinFunc(ispair),
+		"symbol?":        builtinFunc(issymbol),
 		"car":            builtinFunc(car),
 		"cdr":            builtinFunc(cdr),
 		"cons":           builtinFunc(cons),
@@ -37,6 +39,8 @@ func GlobalEnv() *Env {
 		"string-append":  builtinFunc(stringappend),
 		"number->string": builtinFunc(number2string),
 		"string->symbol": builtinFunc(string2symbol),
+		"symbol->string": builtinFunc(symbol2string),
+		"prefix?":        builtinFunc(hasPrefix),
 		"gensym":         builtinFunc(gensymFunc),
 		"eval":           builtinFunc(eval),
 		"read":           builtinFunc(read),
@@ -105,6 +109,10 @@ func ispair(p *process, env *Env, args []SExpression) (SExpression, error) {
 		return NewPrimitive(false), nil
 	}
 	return NewPrimitive(x.AsPair() != empty), nil
+}
+
+func issymbol(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(args[0].IsSymbol()), nil
 }
 
 func car(p *process, env *Env, args []SExpression) (SExpression, error) {
@@ -180,6 +188,16 @@ func number2string(p *process, env *Env, args []SExpression) (SExpression, error
 
 func string2symbol(p *process, env *Env, args []SExpression) (SExpression, error) {
 	return NewSymbol(args[0].AsPrimitive().(string)), nil
+}
+
+func symbol2string(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(string(args[0].AsSymbol())), nil
+}
+
+func hasPrefix(p *process, env *Env, args []SExpression) (SExpression, error) {
+	s := args[0].AsPrimitive().(string)
+	prefix := args[1].AsPrimitive().(string)
+	return NewPrimitive(strings.HasPrefix(s, prefix)), nil
 }
 
 func gensymFunc(p *process, env *Env, args []SExpression) (SExpression, error) {

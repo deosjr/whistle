@@ -36,10 +36,49 @@ var datalog = []string{
            [(equalo a x)]
            [(membero x d)]))))`,
 
+    // NOTE: theres a lot going on in this macro.
+    // dl_vars looks for all vars recursively in a list starting with ?
+    // when we want to run minikanren we need to explicitly name all vars using 'fresh'
+    // TODO: set difference used to dedup dl_vars since we introduce (x) separately
+    // no longer needed once we use a full pattern instead of (x), smth like (equalo q p) where p = `(,?id ?name)
+    // NOTE: using more dynamic fresh, not as macro, able to take an interpreted list of varnames
+    // if there is a way to do this in the macro system, I havent found it yet (eval hacking instead..)
+    // TODO: add unquote to every dl_var istance so we dont have to type it in dl_find input
 	`(define-syntax dl_find
-       (syntax-rules (where run fresh membero dl_db)
-         ((_ (x ...) where ( match ... ))
-          (run 1 (fresh (x ...) (membero (quasiquote match) dl_db) ...)))))`,
+       (syntax-rules (where run equalo membero dl_db dl_vars let set_difference cons fresh eval)
+         ((_ (x) where ( match ... ))
+          (let ((vars (set_difference (dl_vars (quote (match ...))) (quote (x)))))
+            (run 1 (eval (cons 'fresh (cons (cons 'q (cons 'x vars)) (quote ((equalo q x) (membero (quasiquote match) dl_db) ...))))))))))`,
+
+    `(define dl_var? (lambda (s) (if (symbol? s) (prefix? (symbol->string s) "?"))))`,
+
+    `(define foldl (lambda (f l acc)
+       (if (null? l) acc
+         (foldl f (cdr l) (f (car l) acc)))))`,
+
+    // NOTE: I dont care about order
+    `(define append (lambda (a b)
+       (if (null? b) a (append (cons (car b) a) (cdr b)))))`,
+
+    // TODO: deduplicate 
+    `(define dl_vars (lambda (l)
+       (foldl (lambda (x acc)
+         (cond
+           [(dl_var? x) (cons x acc)]
+           [(pair? x) (append (dl_vars x) acc)]
+           [else acc])) l (quote ()))))`,
+
+    `(define member? (lambda (l x)
+       (cond
+         [(null? l) #f]
+         [(eqv? (car l) x) #t]
+         [else (member? (cdr l) x)])))`,
+
+    `(define set_difference (lambda (a b)
+       (cond
+         [(null? a) (quote ())]
+         [(member? b (car a)) (set_difference (cdr a) b)]
+         [else (cons (car a) (set_difference (cdr a) b))])))`,
 
 	// then rules will be the interesting bit, where we'll start with naive eval
 }

@@ -43,11 +43,8 @@ func TestDatalog(t *testing.T) {
                 ))`,
 			want: "(4)",
 		},
-		// TODO: syntactic quirk: we have to tell find about all free variables
-		// first in the list is returned as the answer
-		// Should be able to inspect and add as free all symbols starting with '?' maybe
 		{
-			input: `(dl_find (?directorName ?directorID ?movieID) where (
+			input: `(dl_find (?directorName) where (
                     (,?movieID (movie title) "The Terminator")
                     (,?movieID (movie director) ,?directorID)
                     (,?directorID (person name) ,?directorName)

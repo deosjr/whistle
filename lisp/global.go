@@ -23,7 +23,7 @@ func GlobalEnv() *Env {
 		"mod":            builtinFunc(mod),
 		"#t":             NewPrimitive(true),
 		"#f":             NewPrimitive(false),
-        "not":            builtinFunc(not),
+		"not":            builtinFunc(not),
 		"pi":             NewPrimitive(math.Pi),
 		"newline":        NewPrimitive("\n"),
 		"number?":        builtinFunc(isnumber),

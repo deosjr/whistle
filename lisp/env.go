@@ -140,9 +140,9 @@ Loop:
 				if err != nil {
 					return nil, err
 				}
-                // TODO: will silently fail if not found
-                // check output bool if you want a proper error
-                env.replace(sym, evalled)
+				// TODO: will silently fail if not found
+				// check output bool if you want a proper error
+				env.replace(sym, evalled)
 				return NewPrimitive(false), nil
 			case "define-syntax":
 				keyword := ep.cadr().AsSymbol()
@@ -275,9 +275,9 @@ func (p *process) evalEnvK(env *Env, e SExpression, k continuation) SExpression 
 			sym := ep.cadr().AsSymbol()
 			exp := ep.caddr()
 			return p.evalEnvK(env, exp, func(evalled SExpression) SExpression {
-                // TODO: will silently fail if not found
-                // check output bool if you want a proper error
-                env.replace(sym, evalled)
+				// TODO: will silently fail if not found
+				// check output bool if you want a proper error
+				env.replace(sym, evalled)
 				return k(nil)
 			})
 		case "define-syntax":

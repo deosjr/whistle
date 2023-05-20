@@ -22,14 +22,14 @@ func TestCallCC(t *testing.T) {
 			input: "(call/cc f)",
 			want:  "2",
 		},
-        {
-            input: "(+ 1 (call/cc (lambda (cc) (+ 20 300))))",
-            want:  "321",
-        },
-        {
-            input: "(+ 1 (call/cc (lambda (cc) (+ 20 (cc 300)))))",
-            want:  "301",
-        },
+		{
+			input: "(+ 1 (call/cc (lambda (cc) (+ 20 300))))",
+			want:  "321",
+		},
+		{
+			input: "(+ 1 (call/cc (lambda (cc) (+ 20 (cc 300)))))",
+			want:  "301",
+		},
 	} {
 		t.Log(tt.input)
 		e, err := main.Eval(tt.input)

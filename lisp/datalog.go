@@ -15,6 +15,7 @@ var datalog = []string{
 	// dl_assert and dl_retract operate on the global db
 	// inserting datoms, 3-value tuples (im ignoring tx, the 4th in EAVT)
 	// TODO: currently asserta, when we expect assertz, due to cons
+    // TODO: what if you assert smth that has already been inserted?
 	`(define dl_assert (lambda (entity attr value)
       (set! dl_db (cons (list entity attr value) dl_db))))`,
 	// TODO: retract
@@ -26,16 +27,6 @@ var datalog = []string{
          ((_ type (attr value) ...) (let ((id (dl_nextID)))
            (dl_assert id (list type attr) value) ... id))))`,
 
-	// dl_find is probably a macro?
-	// for starters, will do smth like foreach membero dl_db
-	// NOTE: no 'not' in last clause, so can count double. db semantics probably prevent that
-	`(define membero (lambda (x l)
-       (fresh (a d)
-         (equalo (cons a d) l)
-         (conde
-           [(equalo a x)]
-           [(membero x d)]))))`,
-
     // NOTE: theres a lot going on in this macro.
     // dl_vars looks for all vars recursively in a list starting with ?
     // when we want to run minikanren we need to explicitly name all vars using 'fresh'
@@ -45,12 +36,37 @@ var datalog = []string{
     // if there is a way to do this in the macro system, I havent found it yet (eval hacking instead..)
     // TODO: add unquote to every dl_var istance so we dont have to type it in dl_find input
 	`(define-syntax dl_find
-       (syntax-rules (where run equalo membero dl_db dl_vars let set_difference cons fresh eval)
+       (syntax-rules (where run* equalo membero dl_db dl_vars let set_difference cons fresh eval)
          ((_ (x) where ( match ... ))
           (let ((vars (set_difference (dl_vars (quote (match ...))) (quote (x)))))
-            (run 1 (eval (cons 'fresh (cons (cons 'q (cons 'x vars)) (quote ((equalo q x) (membero (quasiquote match) dl_db) ...))))))))))`,
+            (run* (eval (cons 'fresh (cons (cons 'q (cons 'x vars)) (quote ((equalo q x) (membero (quasiquote match) dl_db) ...))))))))))`,
 
     `(define dl_var? (lambda (s) (if (symbol? s) (prefix? (symbol->string s) "?"))))`,
+
+    `(define dl_vars (lambda (l)
+       (list->set (foldl (lambda (x acc)
+         (cond
+           [(dl_var? x) (cons x acc)]
+           [(pair? x) (append (dl_vars x) acc)]
+           [else acc])) l (quote ())))))`,
+
+	// then rules will be the interesting bit, where we'll start with naive eval
+
+    // TODO: introduce a rule into the (separate!) rule db
+    // define dl_rule
+
+    // TODO: manually trigger fixpoint analysis, repeatedly running rules against all known entities
+    // define dl_fixpoint
+
+    // HELPER FUNCTIONS
+
+	// NOTE: no 'not' in last clause, so can count double. db semantics probably prevent that
+	`(define membero (lambda (x l)
+       (fresh (a d)
+         (equalo (cons a d) l)
+         (conde
+           [(equalo a x)]
+           [(membero x d)]))))`,
 
     `(define foldl (lambda (f l acc)
        (if (null? l) acc
@@ -60,27 +76,25 @@ var datalog = []string{
     `(define append (lambda (a b)
        (if (null? b) a (append (cons (car b) a) (cdr b)))))`,
 
-    // TODO: deduplicate 
-    `(define dl_vars (lambda (l)
-       (foldl (lambda (x acc)
-         (cond
-           [(dl_var? x) (cons x acc)]
-           [(pair? x) (append (dl_vars x) acc)]
-           [else acc])) l (quote ()))))`,
-
     `(define member? (lambda (l x)
        (cond
          [(null? l) #f]
          [(eqv? (car l) x) #t]
          [else (member? (cdr l) x)])))`,
 
+    `(define list->set (lambda (x) (begin
+       (define list->set_ (lambda (a b)
+         (cond
+           [(null? a) b]
+           [(member? b (car a)) (list->set_ (cdr a) b)]
+           [else (list->set_ (cdr a) (cons (car a) b))])))
+       (list->set_ x (quote ())))))`,
+
     `(define set_difference (lambda (a b)
        (cond
          [(null? a) (quote ())]
          [(member? b (car a)) (set_difference (cdr a) b)]
          [else (cons (car a) (set_difference (cdr a) b))])))`,
-
-	// then rules will be the interesting bit, where we'll start with naive eval
 }
 
 func loadDatalog(p *process, env *Env) {

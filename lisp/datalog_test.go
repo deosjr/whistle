@@ -81,11 +81,11 @@ func TestDatalogFixpoint(t *testing.T) {
         // without any records being associated to it yet
         {
             input: `(begin
-                (define a (dl_record vertex))
-                (define b (dl_record vertex))
-                (define c (dl_record vertex))
-                (define d (dl_record vertex))
-                (define e (dl_record vertex))
+                (define a (dl_record 'vertex))
+                (define b (dl_record 'vertex))
+                (define c (dl_record 'vertex))
+                (define d (dl_record 'vertex))
+                (define e (dl_record 'vertex))
             )`,
         },
         {
@@ -107,6 +107,20 @@ func TestDatalogFixpoint(t *testing.T) {
                     (,b edge ,?id)
                 ))`,
 			want: "(4 1)",
+		},
+        // TODO: at some point lets look at dl_assert and see if we can unify into one func
+        {
+            input: `(begin
+                (dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?y))
+                (dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?z) (reachable ,?z ,?y))
+                (dl_fixpoint)
+            )`,
+        },
+		{
+			input: `(dl_find (?id) where (
+                    (,?id reachable ,?id)
+                ))`,
+			want: "(4 3 1)",
 		},
 	} {
 		p, err := parse(tt.input)

@@ -23,6 +23,7 @@ func GlobalEnv() *Env {
 		"mod":            builtinFunc(mod),
 		"#t":             NewPrimitive(true),
 		"#f":             NewPrimitive(false),
+        "not":            builtinFunc(not),
 		"pi":             NewPrimitive(math.Pi),
 		"newline":        NewPrimitive("\n"),
 		"number?":        builtinFunc(isnumber),
@@ -97,6 +98,10 @@ func geq(p *process, env *Env, args []SExpression) (SExpression, error) {
 
 func mod(p *process, env *Env, args []SExpression) (SExpression, error) {
 	return NewPrimitive(math.Mod(args[0].AsNumber(), args[1].AsNumber())), nil
+}
+
+func not(p *process, env *Env, args []SExpression) (SExpression, error) {
+	return NewPrimitive(!args[0].AsPrimitive().(bool)), nil
 }
 
 func isnumber(p *process, env *Env, args []SExpression) (SExpression, error) {

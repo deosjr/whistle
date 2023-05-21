@@ -146,6 +146,9 @@ func (a Atom) String() string {
 	if s, ok := a.value.(string); ok {
 		return fmt.Sprintf("%q", s)
 	}
+	if m, ok := a.value.(map[SExpression]SExpression); ok {
+		return fmt.Sprintf("%v", m)
+	}
 	return strconv.FormatFloat(a.AsNumber(), 'f', -1, 64)
 }
 

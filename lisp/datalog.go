@@ -5,11 +5,9 @@ var datalog = []string{
 	// for starters, this will be a simple list of EAV tuples
 	// split into EDB (extensional, input), IDB (intentional, derived), and RDB (rules)
 	// TODO: then at some point to optimize, we can split further into entity/attr indices etc
-	"(define dl_edb (quote ()))",
-	"(define dl_idb (quote ()))",
+	"(define dl_edb (make-hashmap))",
+	"(define dl_idb (make-hashmap))",
 	"(define dl_rdb (quote ()))",
-
-	"(define dl_db (lambda () (append dl_edb dl_idb)))",
 
 	// dl_nextID is a closure around an ever-increasing counter
 	// TODO: proper closure hiding dl_counter instead of this global nonsense
@@ -23,7 +21,7 @@ var datalog = []string{
 	// TODO: currently asserta, when we expect assertz, due to cons
 	// TODO: what if you assert smth that has already been inserted?
 	`(define dl_assert (lambda (entity attr value)
-      (set! dl_edb (cons (list entity attr value) dl_edb))))`,
+      (hashmap-set! dl_edb (list entity attr value) #t)))`,
 	// TODO: retract
 
 	// dl_record is a convenience macro to add structured data
@@ -42,11 +40,12 @@ var datalog = []string{
 	// if there is a way to do this in the macro system, I havent found it yet (eval hacking instead..)
 	// TODO: add unquote to every dl_var instance so we dont have to type it in dl_find input
 	`(define-syntax dl_find
-       (syntax-rules (where run* equalo membero dl_db dl_vars let list->set cons fresh eval)
+       (syntax-rules (where run* equalo membero dl_edb dl_idb dl_vars let list->set cons eval hashmap-keys disj fresh)
          ((_ (x) where ( match ... ))
           (let ((vars (list->set (dl_vars (quote (x match ...)))))
-                (db (dl_db)))
-            (run* (eval (cons 'fresh (cons (cons 'q vars) (quote ((equalo q x) (membero (quasiquote match) db) ...))))))))))`,
+                (edb (hashmap-keys dl_edb))
+                (idb (hashmap-keys dl_idb)))
+            (run* (eval (cons 'fresh (cons (cons 'q vars) (quote ((equalo q x) (disj (membero (quasiquote match) edb) (membero (quasiquote match) idb)) ...))))))))))`,
 
 	`(define dl_var? (lambda (s) (if (symbol? s) (prefix? (symbol->string s) "?"))))`,
 
@@ -77,16 +76,16 @@ var datalog = []string{
 	// TODO: semi-naive implementation? using golang maps instead of lists?
 	// https://courses.cs.duke.edu/cps216/fall16/Lectures/Lecture-21-Datalog.pdf
 	`(define dl_fixpoint (lambda () (begin
-        (set! dl_idb (quote ()))
+        (set! dl_idb (make-hashmap))
         (dl_fixpoint_iterate)
     )))`,
 
 	// one iteration of fixpoint analysis
 	// NOTE: RDB is expected to not change between iterations
 	`(define dl_fixpoint_iterate (lambda ()
-       (let ((new (set_difference (list->set (foldl append (map dl_apply_rule dl_rdb) (quote ()))) dl_idb)))
-         (set! dl_idb (append dl_idb new))
-         (if (not (null? new)) (dl_fixpoint_iterate))
+       (let ((new (set_difference (foldl (lambda (x y) (set-extend! y x)) (map dl_apply_rule dl_rdb) (make-hashmap)) dl_idb)))
+         (set-extend! dl_idb (hashmap-keys new))
+         (if (not (null? (hashmap-keys new))) (dl_fixpoint_iterate))
     )))`,
 
 	// TODO: assumes rule head AND each member of body is a predicate of arity/2
@@ -98,14 +97,17 @@ var datalog = []string{
 	`(define dl_apply_rule (lambda (rule)
        (let ((head (list 'quasiquote (car rule)))
              (body (map (lambda (x) (list 'quasiquote x)) (cdr rule)))
-             (db (dl_db)))
+             (edb (hashmap-keys dl_edb))
+             (idb (hashmap-keys dl_idb)))
          (let ((vars (list->set (append (dl_vars head) (dl_vars body)))))
            (run* (eval (cons 'fresh (cons (cons 'q vars) (cons
              (list 'equalo 'q head)
-             (map (lambda (b) (list 'membero b 'db)) body)
+             (map (lambda (b) (list 'disj (list 'membero b 'edb) (list 'membero b 'idb))) body)
     )))))))))`,
 
 	// HELPER FUNCTIONS
+    `(define set-extend! (lambda (m keys)
+       (if (null? keys) m (begin (hashmap-set! m (car keys) #t) (set-extend! m (cdr keys))))))`,
 
 	// NOTE: no 'not' in last clause, so can count double. db semantics probably prevent that
 	`(define membero (lambda (x l)
@@ -137,11 +139,12 @@ var datalog = []string{
            [else (list->set_ (cdr a) (cons (car a) b))])))
        (list->set_ x (quote ())))))`,
 
-	`(define set_difference (lambda (a b)
-       (cond
-         [(null? a) (quote ())]
-         [(member? b (car a)) (set_difference (cdr a) b)]
-         [else (cons (car a) (set_difference (cdr a) b))])))`,
+    `(define set_difference (lambda (a b) (begin
+       (define check_keys (lambda (k m)
+         (if (null? k) (make-hashmap) (let ((rec (check_keys (cdr k) m)))
+           (if (not (hashmap-ref m (car k) #f)) (hashmap-set! rec (car k) #t))
+           rec ))))
+       (check_keys (hashmap-keys a) b))))`,
 }
 
 func loadDatalog(p *process, env *Env) {

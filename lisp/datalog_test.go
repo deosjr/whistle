@@ -101,12 +101,12 @@ func TestDatalogFixpoint(t *testing.T) {
                 (dl_edge d e)
             )`,
 		},
-		// TODO: (4 1) = (d a), note reverse order due to asserta
+		// TODO: order not guaranteed because database implementation uses maps!
 		{
 			input: `(dl_find (?id) where (
                     (,b edge ,?id)
                 ))`,
-			want: "(4 1)",
+			want: "(1 4)",
 		},
 		// TODO: at some point lets look at dl_assert and see if we can unify into one func
 		{
@@ -120,7 +120,7 @@ func TestDatalogFixpoint(t *testing.T) {
 			input: `(dl_find (?id) where (
                     (,?id reachable ,?id)
                 ))`,
-			want: "(4 3 1)",
+			want: "(1 3 4)",
 		},
 	} {
 		p, err := parse(tt.input)

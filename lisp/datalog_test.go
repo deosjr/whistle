@@ -1,6 +1,7 @@
 package lisp
 
 import (
+	"sort"
 	"testing"
 )
 
@@ -39,18 +40,27 @@ func TestDatalog(t *testing.T) {
 			want: "4",
 		},
 		{
-			input: `(dl_find (?id) where (
+			input: `(dl_find ,?id where (
                     (,?id (movie year) 1987)
                 ))`,
 			want: "(4)",
 		},
 		{
-			input: `(dl_find (?directorName) where (
+			input: `(dl_find ,?directorName where (
                     (,?movieID (movie title) "The Terminator")
                     (,?movieID (movie director) ,?directorID)
                     (,?directorID (person name) ,?directorName)
                 ))`,
 			want: `("James Cameron")`,
+		},
+		{
+			input: `(dl_find (,?directorName ,?year) where (
+                    (,?movieID (movie title) "Predator")
+                    (,?movieID (movie year) ,?year)
+                    (,?movieID (movie director) ,?directorID)
+                    (,?directorID (person name) ,?directorName)
+                ))`,
+			want: `(("John McTiernan" 1987))`,
 		},
 	} {
 		p, err := parse(tt.input)
@@ -74,8 +84,9 @@ func TestDatalogFixpoint(t *testing.T) {
 	loadKanren(main, env)
 	loadDatalog(main, env)
 	for i, tt := range []struct {
-		input string
-		want  string
+		input  string
+		want   string
+		sorted bool
 	}{
 		// awkardly this works, record without attrs allows us to refer to a new entityID
 		// without any records being associated to it yet
@@ -101,12 +112,12 @@ func TestDatalogFixpoint(t *testing.T) {
                 (dl_edge d e)
             )`,
 		},
-		// TODO: order not guaranteed because database implementation uses maps!
 		{
-			input: `(dl_find (?id) where (
+			input: `(dl_find ,?id where (
                     (,b edge ,?id)
                 ))`,
-			want: "(1 4)",
+			want:   "(1 4)",
+			sorted: true,
 		},
 		// TODO: at some point lets look at dl_assert and see if we can unify into one func
 		{
@@ -117,10 +128,11 @@ func TestDatalogFixpoint(t *testing.T) {
             )`,
 		},
 		{
-			input: `(dl_find (?id) where (
+			input: `(dl_find ,?id where (
                     (,?id reachable ,?id)
                 ))`,
-			want: "(1 3 4)",
+			want:   "(1 3 4)",
+			sorted: true,
 		},
 	} {
 		p, err := parse(tt.input)
@@ -130,6 +142,13 @@ func TestDatalogFixpoint(t *testing.T) {
 		e, err := main.evalEnv(env, p)
 		if err != nil {
 			t.Errorf("%d) eval error %v", i, err)
+		}
+		if tt.sorted {
+			list := cons2list(e.AsPair())
+			sort.Slice(list, func(i, j int) bool {
+				return list[i].AsNumber() < list[j].AsNumber()
+			})
+			e = list2cons(list...)
 		}
 		got := e.String()
 		if got != tt.want {

@@ -41,11 +41,11 @@ var datalog = []string{
 	// TODO: add unquote to every dl_var instance so we dont have to type it in dl_find input
 	`(define-syntax dl_find
        (syntax-rules (where run* equalo membero dl_edb dl_idb dl_vars let list->set cons eval hashmap-keys disj fresh)
-         ((_ (x) where ( match ... ))
+         ((_ x where ( match ... ))
           (let ((vars (list->set (dl_vars (quote (x match ...)))))
                 (edb (hashmap-keys dl_edb))
                 (idb (hashmap-keys dl_idb)))
-            (run* (eval (cons 'fresh (cons (cons 'q vars) (quote ((equalo q x) (disj (membero (quasiquote match) edb) (membero (quasiquote match) idb)) ...))))))))))`,
+            (run* (eval (cons 'fresh (cons (cons 'q vars) (quote ((equalo q (quasiquote x)) (disj (membero (quasiquote match) edb) (membero (quasiquote match) idb)) ...))))))))))`,
 
 	`(define dl_var? (lambda (s) (if (symbol? s) (prefix? (symbol->string s) "?"))))`,
 
@@ -81,7 +81,6 @@ var datalog = []string{
     )))`,
 
 	// one iteration of fixpoint analysis
-	// NOTE: RDB is expected to not change between iterations
 	`(define dl_fixpoint_iterate (lambda ()
        (let ((new (set_difference (foldl (lambda (x y) (set-extend! y x)) (map dl_apply_rule dl_rdb) (make-hashmap)) dl_idb)))
          (set-extend! dl_idb (hashmap-keys new))

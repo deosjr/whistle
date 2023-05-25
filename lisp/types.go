@@ -224,6 +224,17 @@ func (p Pair) recString() []string {
 	return append(s, ".", cdr.String())
 }
 
+func MakeConsList(list []SExpression) Pair {
+    return list2cons(list...)
+}
+
+func UnpackConsList(s SExpression) ([]SExpression, error) {
+    if !s.IsPair() {
+        return nil, fmt.Errorf("not a pair")
+    }
+    return cons2list(s.AsPair()), nil
+}
+
 func list2cons(list ...SExpression) Pair {
 	if len(list) == 0 {
 		return empty

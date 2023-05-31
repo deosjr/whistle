@@ -12,7 +12,7 @@ It includes a partial implementation of macros based on `syntax-rules` and an op
 The lisp.New function creates a new running process with a default evaluation environment. This includes builtin functions like `cons` and `car`, but also some standard macros. 
 Eval returns an sexpression and an error. Only evaluating a single sexpression is supported at the moment, but wrapping multiple expressions in `begin` serves to eval all at once.
 
-```
+```go
 import (
 	"fmt"
 	"log"
@@ -32,7 +32,7 @@ func main() {
 ## Extending LISP using Go
 
 We can extend the set of builtin functions and types quite easily. The type system is kept small; anything that is not included is a Primitive. These need typecasting in Go. Builtin functions are introduced to the environment as follows:
-```
+```go
     l := lisp.New()
     l.Env.AddBuiltin("sin", func(args []lisp.SExpression) (lisp.SExpression, error) {
         return lisp.NewPrimitive(math.Sin(args[0].AsNumber())), nil
@@ -48,7 +48,7 @@ We can extend the set of builtin functions and types quite easily. The type syst
 As per [µKanren: A Minimal Functional Core for Relational Programming](http://webyrd.net/scheme-2013/papers/HemannMuKanren2013.pdf), implementation taken straight from the paper. Allows you to use a pure logic language in Go through Scheme. See the paper for details.
 
 ### Example
-```
+```go
 func main() {
 	l := lisp.New()
 	l.Eval("(display (car (run* (fresh (q) (equalo q 42)))))") // prints 42
@@ -61,7 +61,7 @@ One motivation for starting this repo was to explore concurrency in minikanren, 
 
 ### Example
 Here we define a REPL function and a restarter, which kicks off the REPL and restarts it whenever it goes down with an error. There is some hacking involved to make sure the evaluation environment survives; here be dragons!
-```
+```go
 func main() {
 	l := lisp.New()
 	l.Eval(`(define REPL (lambda (env)
@@ -85,7 +85,7 @@ func main() {
 Continuation passing style interpretation is supported. The process flag `eval_with_continuation` switches evaluation modes. l.Continue only works if the process is in CPS mode and otherwise errors.
 
 ### Example
-```
+```go
 func main() {
 	l := lisp.New()
 	l.Eval("(process_flag 'eval_with_continuation #t)")
@@ -103,7 +103,7 @@ A late addition, this is a basic attempt at implementing Datalog using minikanre
 ### Example
 Here we define a directed graph with 5 vertices and some edges between them. We then introduce rules to determine the `reachable` relation between vertices, and manually trigger fixpoint analysis.
 After all that, we ask "which vertices are reachable from themselves?" (ie find cycles).
-```
+```go
 func main() {
 	l := lisp.New()
 	l.Eval(`(begin

@@ -14,18 +14,18 @@ Eval returns an sexpression and an error. Only evaluating a single sexpression i
 
 ```go
 import (
-	"fmt"
-	"log"
-	"github.com/deosjr/lispadventures/lisp"
+    "fmt"
+    "log"
+    "github.com/deosjr/lispadventures/lisp"
 )
 
 func main() {
-	l := lisp.New()
-	e, err := l.Eval("(* 6 7)")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(e) // prints 42
+    l := lisp.New()
+    e, err := l.Eval("(* 6 7)")
+    if err != nil {
+    	log.Fatal(err)
+    }
+    fmt.Println(e) // prints 42
 }
 ```
 
@@ -40,8 +40,10 @@ We can extend the set of builtin functions and types quite easily. The type syst
     l.Env.AddBuiltin("cos", func(args []lisp.SExpression) (lisp.SExpression, error) {
         return lisp.NewPrimitive(math.Cos(args[0].AsNumber())), nil
     })
-	// hereafter, 'sin' and 'cos' are recognised as builtin functions in lisp
+    // hereafter, 'sin' and 'cos' are recognised as builtin functions in lisp
 ```
+
+Another example can be found in this [repo](https://github.com/deosjr/lispgraphics/blob/main/pixel.go) where I wrap [faiface/pixel](github.com/faiface/pixel) and call it from lisp.
 
 ## MiniKanren
 
@@ -50,8 +52,8 @@ As per [µKanren: A Minimal Functional Core for Relational Programming](http://w
 ### Example
 ```go
 func main() {
-	l := lisp.New()
-	l.Eval("(display (car (run* (fresh (q) (equalo q 42)))))") // prints 42
+    l := lisp.New()
+    l.Eval("(display (car (run* (fresh (q) (equalo q 42)))))") // prints 42
 }
 ```
 
@@ -63,20 +65,20 @@ One motivation for starting this repo was to explore concurrency in minikanren, 
 Here we define a REPL function and a restarter, which kicks off the REPL and restarts it whenever it goes down with an error. There is some hacking involved to make sure the evaluation environment survives; here be dragons!
 ```go
 func main() {
-	l := lisp.New()
-	l.Eval(`(define REPL (lambda (env)
+    l := lisp.New()
+    l.Eval(`(define REPL (lambda (env)
         (begin (display "> ")
                (display (eval (read) env))
                (display newline)
                (REPL env))))`)
-	l.Eval(`(define restarter (lambda (env)
+    l.Eval(`(define restarter (lambda (env)
         (begin (process_flag 'trap_exit #t)
                (let ((pid (spawn_link (lambda () (begin (process_flag 'eval_with_continuation #t) (REPL env))) (quote ()))))
                     (receive
                         ((reason) (quasiquote (EXIT ,pid ,reason)) ->
                             (if (eqv? reason "normal") #t
                             (begin (display "** exception error: ") (display reason) (display newline) (restarter env)))))))))`)
-	l.Eval("(restarter (environment))") // starts an interactive REPL
+    l.Eval("(restarter (environment))") // starts an interactive REPL
 }
 ```
 
@@ -87,12 +89,12 @@ Continuation passing style interpretation is supported. The process flag `eval_w
 ### Example
 ```go
 func main() {
-	l := lisp.New()
-	l.Eval("(process_flag 'eval_with_continuation #t)")
-	l.Eval("(define x 6)")
-	e, _ := l.Eval("(begin (display (* x y)) (display newline))")
-	l.Eval("(define y 7)")
-	l.Continue(e) // prints 42
+    l := lisp.New()
+    l.Eval("(process_flag 'eval_with_continuation #t)")
+    l.Eval("(define x 6)")
+    e, _ := l.Eval("(begin (display (* x y)) (display newline))")
+    l.Eval("(define y 7)")
+    l.Continue(e) // prints 42
 }
 ```
 
@@ -105,8 +107,8 @@ Here we define a directed graph with 5 vertices and some edges between them. We 
 After all that, we ask "which vertices are reachable from themselves?" (ie find cycles).
 ```go
 func main() {
-	l := lisp.New()
-	l.Eval(`(begin
+    l := lisp.New()
+    l.Eval(`(begin
         (define a (dl_record 'vertex))
         (define b (dl_record 'vertex))
         (define c (dl_record 'vertex))
@@ -123,7 +125,7 @@ func main() {
     l.Eval("(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?y))")
     l.Eval("(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?z) (reachable ,?z ,?y))")
     l.Eval("(dl_fixpoint)")
-     // prints (1 3 4) or a permutation thereof
-	l.Eval(`(display (dl_find ,?id where ( (,?id reachable ,?id))))`)
+    // prints (1 3 4) or a permutation thereof
+    l.Eval(`(display (dl_find ,?id where ( (,?id reachable ,?id))))`)
 }
 ```

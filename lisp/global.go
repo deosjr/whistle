@@ -48,14 +48,14 @@ func GlobalEnv() *Env {
 		"read-string":    builtinFunc(readString),
 		"environment":    builtinFunc(environment),
 		"listing":        builtinFunc(listing),
-        // maps
-        "make-hashmap":   builtinFunc(makeHashmap),
-        "hashmap-set!":   builtinFunc(hashmapSet),
-        "hashmap-del!":   builtinFunc(hashmapDelete),
-        "hashmap-ref":    builtinFunc(hashmapRef),
-        "hashmap-keys":   builtinFunc(hashmapKeys),
-        "hashmap-values": builtinFunc(hashmapValues),
-        //"hashmap-entries":builtinFunc(hashmapEntries),
+		// maps
+		"make-hashmap":   builtinFunc(makeHashmap),
+		"hashmap-set!":   builtinFunc(hashmapSet),
+		"hashmap-del!":   builtinFunc(hashmapDelete),
+		"hashmap-ref":    builtinFunc(hashmapRef),
+		"hashmap-keys":   builtinFunc(hashmapKeys),
+		"hashmap-values": builtinFunc(hashmapValues),
+		//"hashmap-entries":builtinFunc(hashmapEntries),
 	}, outer: nil}
 }
 
@@ -282,45 +282,48 @@ func listing(p *process, env *Env, args []SExpression) (SExpression, error) {
 }
 
 func makeHashmap(p *process, env *Env, args []SExpression) (SExpression, error) {
-    return NewPrimitive(map[SExpression]SExpression{}), nil
+	return NewPrimitive(map[SExpression]SExpression{}), nil
 }
+
 // (hashmap-set! map key value)
 func hashmapSet(p *process, env *Env, args []SExpression) (SExpression, error) {
-    m := args[0].AsPrimitive().(map[SExpression]SExpression)
-    key, value := args[1], args[2]
-    m[key] = value
+	m := args[0].AsPrimitive().(map[SExpression]SExpression)
+	key, value := args[1], args[2]
+	m[key] = value
 	return NewPrimitive(true), nil
 }
+
 // (hashmap-del! map key)
 func hashmapDelete(p *process, env *Env, args []SExpression) (SExpression, error) {
-    m := args[0].AsPrimitive().(map[SExpression]SExpression)
-    key := args[1]
-    delete(m, key)
+	m := args[0].AsPrimitive().(map[SExpression]SExpression)
+	key := args[1]
+	delete(m, key)
 	return NewPrimitive(true), nil
 }
+
 // (hashmap-ref map key defaultvalue)
 func hashmapRef(p *process, env *Env, args []SExpression) (SExpression, error) {
-    m := args[0].AsPrimitive().(map[SExpression]SExpression)
-    key, def := args[1], args[2]
-    v, ok := m[key]
-    if ok {
-        return v, nil
-    }
-    return def, nil
+	m := args[0].AsPrimitive().(map[SExpression]SExpression)
+	key, def := args[1], args[2]
+	v, ok := m[key]
+	if ok {
+		return v, nil
+	}
+	return def, nil
 }
 func hashmapKeys(p *process, env *Env, args []SExpression) (SExpression, error) {
-    m := args[0].AsPrimitive().(map[SExpression]SExpression)
-    keys := []SExpression{}
-    for k := range m {
-        keys = append(keys, k)
-    }
+	m := args[0].AsPrimitive().(map[SExpression]SExpression)
+	keys := []SExpression{}
+	for k := range m {
+		keys = append(keys, k)
+	}
 	return list2cons(keys...), nil
 }
 func hashmapValues(p *process, env *Env, args []SExpression) (SExpression, error) {
-    m := args[0].AsPrimitive().(map[SExpression]SExpression)
-    values := []SExpression{}
-    for _, v := range m {
-        values = append(values, v)
-    }
+	m := args[0].AsPrimitive().(map[SExpression]SExpression)
+	values := []SExpression{}
+	for _, v := range m {
+		values = append(values, v)
+	}
 	return list2cons(values...), nil
 }

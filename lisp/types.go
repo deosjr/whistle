@@ -225,14 +225,14 @@ func (p Pair) recString() []string {
 }
 
 func MakeConsList(list []SExpression) Pair {
-    return list2cons(list...)
+	return list2cons(list...)
 }
 
 func UnpackConsList(s SExpression) ([]SExpression, error) {
-    if !s.IsPair() {
-        return nil, fmt.Errorf("not a pair")
-    }
-    return cons2list(s.AsPair()), nil
+	if !s.IsPair() {
+		return nil, fmt.Errorf("not a pair")
+	}
+	return cons2list(s.AsPair()), nil
 }
 
 func list2cons(list ...SExpression) Pair {

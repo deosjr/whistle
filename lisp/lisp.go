@@ -12,7 +12,7 @@ func New() Lisp {
 	env := GlobalEnv()
 	loadKanren(p, env)
 	loadErlang(p, env)
-    loadDatalog(p, env)
+	loadDatalog(p, env)
 	return Lisp{p, env}
 }
 

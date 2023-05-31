@@ -9,9 +9,9 @@ var datalog = []string{
 	"(define dl_rdb (quote ()))",
 
 	// further split into entity/attr indices etc to optimise search
-    // NOTE: these will include derived tuples
-    "(define dl_idx_entity (make-hashmap))",
-    "(define dl_idx_attr (make-hashmap))",
+	// NOTE: these will include derived tuples
+	"(define dl_idx_entity (make-hashmap))",
+	"(define dl_idx_attr (make-hashmap))",
 
 	// dl_nextID is a closure around an ever-increasing counter
 	// TODO: proper closure hiding dl_counter instead of this global nonsense
@@ -23,12 +23,12 @@ var datalog = []string{
 	// dl_assert and dl_retract operate on the global edb
 	// inserting datoms, 3-value tuples (im ignoring tx, the 4th in EAVT)
 	// NOTE: order is thrown out, since we use hashmaps underneath
-    // updates entity/attr indices as well (opting not to use a value index yet)
+	// updates entity/attr indices as well (opting not to use a value index yet)
 	`(define dl_assert (lambda (entity attr value) (begin
       (hashmap-set! dl_edb (list entity attr value) #t)
       (dl_update_indices (list entity attr value)))))`,
 	// TODO: retract
-    `(define dl_update_indices (lambda (tuple)
+	`(define dl_update_indices (lambda (tuple)
        (let ((entity (car tuple))
              (attr (car (cdr tuple))))
          (let ((m (hashmap-ref dl_idx_entity entity #f)))
@@ -63,8 +63,8 @@ var datalog = []string{
                 (idb (hashmap-keys dl_idb)))
             (run* (eval (cons 'fresh (cons (cons 'q vars) (quote ((equalo q (quasiquote x)) (dl_findo (quasiquote match) edb idb) ...))))))))))`,
 
-    // TODO: start at breaking out logic of dl_find macro so we can use indices and speed this up a bit
-    `(define dl_findo (lambda (m edb idb)
+	// TODO: start at breaking out logic of dl_find macro so we can use indices and speed this up a bit
+	`(define dl_findo (lambda (m edb idb)
        (fresh (x y entity attr db)
        (conso entity x m)
        (conso attr y x)
@@ -72,7 +72,7 @@ var datalog = []string{
            [(boundo entity) (lookupo dl_idx_entity entity db) (membero m db)]
            [(unboundo entity) (boundo attr) (lookupo dl_idx_attr attr db) (membero m db)] ))))`,
 
-           //[(disj (membero m edb) (membero m idb))]))))`,
+	//[(disj (membero m edb) (membero m idb))]))))`,
 
 	`(define dl_var? (lambda (s) (if (symbol? s) (prefix? (symbol->string s) "?"))))`,
 
@@ -123,7 +123,7 @@ var datalog = []string{
          (eval (quasiquote (dl_find ,head where ,body))))))`,
 
 	// HELPER FUNCTIONS
-    `(define set-extend! (lambda (m keys)
+	`(define set-extend! (lambda (m keys)
        (if (null? keys) m (begin (hashmap-set! m (car keys) #t) (set-extend! m (cdr keys))))))`,
 
 	// NOTE: no 'not' in last clause, so can count double. db semantics probably prevent that
@@ -156,28 +156,28 @@ var datalog = []string{
            [else (list->set_ (cdr a) (cons (car a) b))])))
        (list->set_ x (quote ())))))`,
 
-    `(define set_difference (lambda (a b) (begin
+	`(define set_difference (lambda (a b) (begin
        (define check_keys (lambda (k m)
          (if (null? k) (make-hashmap) (let ((rec (check_keys (cdr k) m)))
            (if (not (hashmap-ref m (car k) #f)) (hashmap-set! rec (car k) #t))
            rec ))))
        (check_keys (hashmap-keys a) b))))`,
 
-    "(define conso (lambda (a b l) (equalo (cons a b) l)))",
-    // NOTE: this breaks logical purity; we can no longer freely reorder goals
-    `(define boundo (lambda (v)
+	"(define conso (lambda (a b l) (equalo (cons a b) l)))",
+	// NOTE: this breaks logical purity; we can no longer freely reorder goals
+	`(define boundo (lambda (v)
         (lambda (s/c)
           (if (var? v)
             (let ((x (walk v (car s/c))))
               (if (var? x) mzero (unit s/c)))
             (unit s/c)))))`,
-    `(define unboundo (lambda (v)
+	`(define unboundo (lambda (v)
         (lambda (s/c)
           (if (var? v)
             (let ((x (walk v (car s/c))))
               (if (var? x) (unit s/c) mzero))
             mzero))))`,
-    `(define lookupo (lambda (m key value)
+	`(define lookupo (lambda (m key value)
         (lambda (s/c)
           (let ((k 
             (if (var? key)

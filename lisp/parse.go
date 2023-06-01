@@ -2,9 +2,30 @@ package lisp
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
+
+// TODO: read from stream of input, maybe eval as we parse valid sexpressions
+// For now, we just slurp in the entire file and return a list of expressions
+func ParseFile(filename string) ([]SExpression, error) {
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	tokens := tokenize(string(b))
+	exprs := []SExpression{}
+	for len(tokens) > 0 {
+		e, rem, err := readFromTokens(tokens)
+		if err != nil {
+			return nil, err
+		}
+		exprs = append(exprs, e)
+		tokens = rem
+	}
+	return exprs, nil
+}
 
 func mustParse(program string) SExpression {
 	p, err := parse(program)

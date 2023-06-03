@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/deosjr/lispadventures/lisp"
+	"github.com/deosjr/whistle/lisp"
 )
 
 func main() {

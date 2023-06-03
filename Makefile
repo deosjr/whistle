@@ -6,3 +6,6 @@ test:
 
 build:
 	go build -o build/whistle cmd/whistle/main.go
+
+install:
+	go install ./cmd/whistle

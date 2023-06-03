@@ -2,7 +2,7 @@
 
 LISP interpreter in Golang, plus a collection of interesting add-ons implemented in Go/LISP/both.
 
-![https://en.wikipedia.org/wiki/Gopher_%28Winnie_the_Pooh%29#/media/File:Gopher_%28Winnie-the-Pooh_character%29.gif](https://en.wikipedia.org/wiki/Gopher_%28Winnie_the_Pooh%29#/media/File:Gopher_%28Winnie-the-Pooh_character%29.gif)
+![http://poohpics.narod.ru/pictures/disney/gopher/gopher1.gif](http://poohpics.narod.ru/pictures/disney/gopher/gopher1.gif)
 
 ## LISP
 

@@ -10,9 +10,6 @@ type Lisp struct {
 func New() Lisp {
 	p := newProcess()
 	env := GlobalEnv()
-	loadKanren(p, env)
-	loadErlang(p, env)
-	loadDatalog(p, env)
 	return Lisp{p, env}
 }
 

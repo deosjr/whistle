@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/deosjr/whistle/datalog"
+	"github.com/deosjr/whistle/erlang"
+	"github.com/deosjr/whistle/kanren"
 	"github.com/deosjr/whistle/lisp"
 )
 
@@ -21,13 +24,23 @@ func main() {
 		return
 	}
 	l := lisp.New()
+	kanren.Load(l)
+	erlang.Load(l)
+	datalog.Load(l)
 	for _, e := range sexpressions {
-		l.EvalExpr(e)
+		_, err := l.EvalExpr(e)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 }
 
 func startREPL() {
 	l := lisp.New()
+	kanren.Load(l)
+	erlang.Load(l)
+	datalog.Load(l)
 	// TODO: reintroduces extra newline after define
 	l.Eval(`(define REPL (lambda (env)
         (begin (display "> ")

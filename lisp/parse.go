@@ -14,7 +14,11 @@ func ParseFile(filename string) ([]SExpression, error) {
 	if err != nil {
 		return nil, err
 	}
-	tokens := tokenize(string(b))
+	return Multiparse(string(b))
+}
+
+func Multiparse(file string) ([]SExpression, error) {
+	tokens := tokenize(file)
 	exprs := []SExpression{}
 	for len(tokens) > 0 {
 		e, rem, err := readFromTokens(tokens)
@@ -50,8 +54,20 @@ func tokenize(s string) []string {
 	fields := strings.Fields(s)
 	// pasting string escaped stuff back together..
 	str := ""
+	comment := false
 	for i := 0; i < len(fields); i++ {
 		ss := fields[i]
+		if len(str) == 0 && ss == "#|" {
+			comment = true
+			continue
+		}
+		if len(str) == 0 && comment && ss == "|#" {
+			comment = false
+			continue
+		}
+		if comment {
+			continue
+		}
 		if len(str) == 0 && strings.HasPrefix(ss, `"`) {
 			if len(ss) > 1 && strings.HasSuffix(ss, `"`) {
 				tokenized = append(tokenized, ss)

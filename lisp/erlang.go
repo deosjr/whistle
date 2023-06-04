@@ -14,6 +14,9 @@ import (
 // For this second attempt we will spawn each process with a copy of the env
 // in which the process was spawned, and storing '$PID' on the process struct
 
+// TODO: this file is only partially migrated to erlang/erlang.go due to
+// some very nasty dependencies on eval within receive!
+
 type process struct {
 	sync.Mutex
 	pid     string
@@ -81,7 +84,10 @@ var mailboxes = make(map[string]chan SExpression)
 var errchannels = make(map[string]chan processError)
 var processlinks = make(map[string]map[string]struct{})
 
-func loadErlang(p *process, env *Env) {
+// TODO: move to erlang package, first need to figure out
+// how to untangle the evals in receive builtin func
+func LoadErlang(l Lisp) {
+	p, env := l.process, l.Env
 	env.addBuiltin("self", self)
 	env.addBuiltin("send", send)
 	env.addBuiltin("link", link)
@@ -113,6 +119,15 @@ func loadErlang(p *process, env *Env) {
 }
 
 var pidFunc func() string = generatePid
+
+// TODO: until this lives in erlang package
+func SetPidFuncForTest() {
+	pidi := 0
+	pidFunc = func() string {
+		pidi++
+		return fmt.Sprintf("<%02d>", pidi)
+	}
+}
 
 func generatePid() string {
 	return "<pid" + fmt.Sprint(rand.Intn(9999999999)) + ">"

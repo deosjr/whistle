@@ -1,14 +1,15 @@
-package lisp
+package kanren
 
 import (
 	"testing"
+
+	"github.com/deosjr/whistle/lisp"
 )
 
 // examples taken from the paper
 func TestKanren(t *testing.T) {
-	main := newProcess()
-	env := GlobalEnv()
-	loadKanren(main, env)
+	l := lisp.New()
+	Load(l)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -45,11 +46,7 @@ func TestKanren(t *testing.T) {
 			want:  "(5 6 5 6)",
 		},
 	} {
-		p, err := parse(tt.input)
-		if err != nil {
-			t.Errorf("%d) parse error %v", i, err)
-		}
-		e, err := main.evalEnv(env, p)
+		e, err := l.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) eval error %v", i, err)
 		}
@@ -62,9 +59,8 @@ func TestKanren(t *testing.T) {
 
 // mostly documenting simpler behaviour so I can refer back to it while studying
 func TestLearnKanren(t *testing.T) {
-	main := newProcess()
-	env := GlobalEnv()
-	loadKanren(main, env)
+	l := lisp.New()
+	Load(l)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -313,11 +309,7 @@ func TestLearnKanren(t *testing.T) {
 		// I want to get to pure ifte but would need disequality constraints first
 		// Neumerkel/Kral (2016) - Indexing dif/2
 	} {
-		p, err := parse(tt.input)
-		if err != nil {
-			t.Errorf("%d) parse error %v", i, err)
-		}
-		e, err := main.evalEnv(env, p)
+		e, err := l.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) eval error %v", i, err)
 		}
@@ -329,9 +321,8 @@ func TestLearnKanren(t *testing.T) {
 }
 
 func TestKanrenDCG(t *testing.T) {
-	main := newProcess()
-	env := GlobalEnv()
-	loadKanren(main, env)
+	l := lisp.New()
+	Load(l)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -606,11 +597,7 @@ func TestKanrenDCG(t *testing.T) {
 			want:  "((4 3 2 1))",
 		},
 	} {
-		p, err := parse(tt.input)
-		if err != nil {
-			t.Errorf("%d) parse error %v", i, err)
-		}
-		e, err := main.evalEnv(env, p)
+		e, err := l.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) eval error %v", i, err)
 		}

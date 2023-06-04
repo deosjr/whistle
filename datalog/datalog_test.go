@@ -1,15 +1,17 @@
-package lisp
+package datalog
 
 import (
 	"sort"
 	"testing"
+
+	"github.com/deosjr/whistle/kanren"
+	"github.com/deosjr/whistle/lisp"
 )
 
 func TestDatalog(t *testing.T) {
-	main := newProcess()
-	env := GlobalEnv()
-	loadKanren(main, env)
-	loadDatalog(main, env)
+	l := lisp.New()
+	kanren.Load(l)
+	Load(l)
 	for i, tt := range []struct {
 		input string
 		want  string
@@ -63,11 +65,7 @@ func TestDatalog(t *testing.T) {
 			want: `(("John McTiernan" 1987))`,
 		},
 	} {
-		p, err := parse(tt.input)
-		if err != nil {
-			t.Errorf("%d) parse error %v", i, err)
-		}
-		e, err := main.evalEnv(env, p)
+		e, err := l.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) eval error %v", i, err)
 		}
@@ -79,10 +77,9 @@ func TestDatalog(t *testing.T) {
 }
 
 func TestDatalogFixpoint(t *testing.T) {
-	main := newProcess()
-	env := GlobalEnv()
-	loadKanren(main, env)
-	loadDatalog(main, env)
+	l := lisp.New()
+	kanren.Load(l)
+	Load(l)
 	for i, tt := range []struct {
 		input  string
 		want   string
@@ -135,20 +132,21 @@ func TestDatalogFixpoint(t *testing.T) {
 			sorted: true,
 		},
 	} {
-		p, err := parse(tt.input)
-		if err != nil {
-			t.Errorf("%d) parse error %v", i, err)
-		}
-		e, err := main.evalEnv(env, p)
+		e, err := l.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) eval error %v", i, err)
+			continue
 		}
 		if tt.sorted {
-			list := cons2list(e.AsPair())
+			list, err := lisp.UnpackConsList(e)
+			if err != nil {
+				t.Errorf("%d) eval error %v", i, err)
+				continue
+			}
 			sort.Slice(list, func(i, j int) bool {
 				return list[i].AsNumber() < list[j].AsNumber()
 			})
-			e = list2cons(list...)
+			e = lisp.MakeConsList(list)
 		}
 		got := e.String()
 		if got != tt.want {
@@ -158,10 +156,9 @@ func TestDatalogFixpoint(t *testing.T) {
 }
 
 func TestDatalogImpure(t *testing.T) {
-	main := newProcess()
-	env := GlobalEnv()
-	loadKanren(main, env)
-	loadDatalog(main, env)
+	l := lisp.New()
+	kanren.Load(l)
+	Load(l)
 	for i, tt := range []struct {
 		input  string
 		want   string
@@ -259,20 +256,20 @@ func TestDatalogImpure(t *testing.T) {
 			want:  "()",
 		},
 	} {
-		p, err := parse(tt.input)
-		if err != nil {
-			t.Errorf("%d) parse error %v", i, err)
-		}
-		e, err := main.evalEnv(env, p)
+		e, err := l.Eval(tt.input)
 		if err != nil {
 			t.Errorf("%d) eval error %v", i, err)
 		}
 		if tt.sorted {
-			list := cons2list(e.AsPair())
+			list, err := lisp.UnpackConsList(e)
+			if err != nil {
+				t.Errorf("%d) eval error %v", i, err)
+				continue
+			}
 			sort.Slice(list, func(i, j int) bool {
 				return list[i].AsNumber() < list[j].AsNumber()
 			})
-			e = list2cons(list...)
+			e = lisp.MakeConsList(list)
 		}
 		got := e.String()
 		if got != tt.want {

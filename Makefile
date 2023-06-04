@@ -4,8 +4,11 @@ run:
 test:
 	go test ./... -test.short -count=1
 
-build:
-	go build -o build/whistle cmd/whistle/main.go
+clean:
+	rm -rf build
+
+build: clean
+	go build -o ./build/whistle ./cmd/whistle/
 
 install:
 	go install ./cmd/whistle

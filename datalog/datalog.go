@@ -10,6 +10,7 @@ import (
 var datalog string
 
 func Load(l lisp.Lisp) {
+	// TODO: should fail if kanren hasnt been loaded
 	sexprs, err := lisp.Multiparse(datalog)
 	if err != nil {
 		panic(err)

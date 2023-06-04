@@ -1,6 +1,7 @@
 # Whistle
 
 LISP interpreter in Golang, plus a collection of interesting add-ons implemented in Go/LISP/both.
+Emphasis is on hackability over performance and bugs remain: don't use this in production!
 
 ![http://poohpics.narod.ru/pictures/disney/gopher/gopher1.gif](http://poohpics.narod.ru/pictures/disney/gopher/gopher1.gif)
 
@@ -45,7 +46,7 @@ We can extend the set of builtin functions and types quite easily. The type syst
     // hereafter, 'sin' and 'cos' are recognised as builtin functions in lisp
 ```
 
-Another example can be found in this [repo](https://github.com/deosjr/lispgraphics/blob/main/pixel.go) where I wrap [faiface/pixel](github.com/faiface/pixel) and call it from lisp.
+Another example can be found in this [repo](https://github.com/deosjr/lispgraphics/blob/main/pixel.go) where I wrap the faiface/pixel lib and call it from lisp.
 
 ## MiniKanren
 
@@ -55,6 +56,7 @@ As per [µKanren: A Minimal Functional Core for Relational Programming](http://w
 ```go
 func main() {
     l := lisp.New()
+    kanren.Load(l)
     l.Eval("(display (car (run* (fresh (q) (equalo q 42)))))") // prints 42
 }
 ```
@@ -68,6 +70,8 @@ Here we define a REPL function and a restarter, which kicks off the REPL and res
 ```go
 func main() {
     l := lisp.New()
+    kanren.Load(l)
+    erlang.Load(l)
     l.Eval(`(define REPL (lambda (env)
         (begin (display "> ")
                (display (eval (read) env))
@@ -110,6 +114,8 @@ After all that, we ask "which vertices are reachable from themselves?" (ie find 
 ```go
 func main() {
     l := lisp.New()
+    kanren.Load(l)
+    datalog.Load(l)
     l.Eval(`(begin
         (define a (dl_record 'vertex))
         (define b (dl_record 'vertex))

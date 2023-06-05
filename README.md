@@ -16,34 +16,39 @@ The lisp.New function creates a new running process with a default evaluation en
 Eval returns an sexpression and an error. Only evaluating a single sexpression is supported at the moment, but wrapping multiple expressions in `begin` serves to eval all at once.
 
 ```go
+package main
+
 import (
-    "fmt"
-    "log"
-    "github.com/deosjr/lispadventures/lisp"
+	"fmt"
+	"log"
+
+	"github.com/deosjr/whistle/lisp"
 )
 
 func main() {
-    l := lisp.New()
-    e, err := l.Eval("(* 6 7)")
-    if err != nil {
-    	log.Fatal(err)
-    }
-    fmt.Println(e) // prints 42
+	l := lisp.New()
+	e, err := l.Eval("(* 6 7)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(e) // prints 42
 }
 ```
+
+See the [examples](./examples/) directory for more examples.
 
 ## Extending LISP using Go
 
 We can extend the set of builtin functions and types quite easily. The type system is kept small; anything that is not included is a Primitive. These need typecasting in Go. Builtin functions are introduced to the environment as follows:
 ```go
-    l := lisp.New()
-    l.Env.AddBuiltin("sin", func(args []lisp.SExpression) (lisp.SExpression, error) {
-        return lisp.NewPrimitive(math.Sin(args[0].AsNumber())), nil
-    })
-    l.Env.AddBuiltin("cos", func(args []lisp.SExpression) (lisp.SExpression, error) {
-        return lisp.NewPrimitive(math.Cos(args[0].AsNumber())), nil
-    })
-    // hereafter, 'sin' and 'cos' are recognised as builtin functions in lisp
+	l := lisp.New()
+	l.Env.AddBuiltin("sin", func(args []lisp.SExpression) (lisp.SExpression, error) {
+		return lisp.NewPrimitive(math.Sin(args[0].AsNumber())), nil
+	})
+	l.Env.AddBuiltin("cos", func(args []lisp.SExpression) (lisp.SExpression, error) {
+		return lisp.NewPrimitive(math.Cos(args[0].AsNumber())), nil
+	})
+	// hereafter, 'sin' and 'cos' are recognised as builtin functions in lisp
 ```
 
 Another example can be found in this [repo](https://github.com/deosjr/lispgraphics/blob/main/pixel.go) where I wrap the faiface/pixel lib and call it from lisp.
@@ -54,10 +59,24 @@ As per [µKanren: A Minimal Functional Core for Relational Programming](http://w
 
 ### Example
 ```go
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/deosjr/whistle/kanren"
+	"github.com/deosjr/whistle/lisp"
+)
+
 func main() {
-    l := lisp.New()
-    kanren.Load(l)
-    l.Eval("(display (car (run* (fresh (q) (equalo q 42)))))") // prints 42
+	l := lisp.New()
+	kanren.Load(l)
+	e, err := l.Eval("(display (car (run* (fresh (q) (equalo q 42)))))")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(e) // prints 42
 }
 ```
 
@@ -69,22 +88,22 @@ One motivation for starting this repo was to explore concurrency in minikanren, 
 Here we define a REPL function and a restarter, which kicks off the REPL and restarts it whenever it goes down with an error. There is some hacking involved to make sure the evaluation environment survives; here be dragons!
 ```go
 func main() {
-    l := lisp.New()
-    kanren.Load(l)
-    erlang.Load(l)
-    l.Eval(`(define REPL (lambda (env)
+	l := lisp.New()
+	kanren.Load(l)
+	erlang.Load(l)
+	l.Eval(`(define REPL (lambda (env)
         (begin (display "> ")
                (display (eval (read) env))
                (display newline)
                (REPL env))))`)
-    l.Eval(`(define restarter (lambda (env)
+	l.Eval(`(define restarter (lambda (env)
         (begin (process_flag 'trap_exit #t)
                (let ((pid (spawn_link (lambda () (begin (process_flag 'eval_with_continuation #t) (REPL env))) (quote ()))))
                     (receive
                         ((reason) (quasiquote (EXIT ,pid ,reason)) ->
                             (if (eqv? reason "normal") #t
                             (begin (display "** exception error: ") (display reason) (display newline) (restarter env)))))))))`)
-    l.Eval("(restarter (environment))") // starts an interactive REPL
+	l.Eval("(restarter (environment))") // starts an interactive REPL
 }
 ```
 
@@ -113,16 +132,16 @@ Here we define a directed graph with 5 vertices and some edges between them. We 
 After all that, we ask "which vertices are reachable from themselves?" (ie find cycles).
 ```go
 func main() {
-    l := lisp.New()
-    kanren.Load(l)
-    datalog.Load(l)
-    l.Eval(`(begin
+	l := lisp.New()
+	kanren.Load(l)
+	datalog.Load(l)
+	l.Eval(`(begin
         (define a (dl_record 'vertex))
         (define b (dl_record 'vertex))
         (define c (dl_record 'vertex))
         (define d (dl_record 'vertex))
         (define e (dl_record 'vertex)))`)
-    l.Eval("(define dl_edge (lambda (x y) (dl_assert x 'edge y)))")
+	l.Eval("(define dl_edge (lambda (x y) (dl_assert x 'edge y)))")
 	l.Eval(`(begin
         (dl_edge a c)
         (dl_edge b a)
@@ -130,10 +149,10 @@ func main() {
         (dl_edge c d)
         (dl_edge d a)
         (dl_edge d e))`)
-    l.Eval("(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?y))")
-    l.Eval("(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?z) (reachable ,?z ,?y))")
-    l.Eval("(dl_fixpoint)")
-    // prints (1 3 4) or a permutation thereof
-    l.Eval(`(display (dl_find ,?id where ( (,?id reachable ,?id))))`)
+	l.Eval("(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?y))")
+	l.Eval("(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?z) (reachable ,?z ,?y))")
+	l.Eval("(dl_fixpoint)")
+	// prints (1 3 4) or a permutation thereof
+	l.Eval(`(display (dl_find ,?id where ( (,?id reachable ,?id))))`)
 }
 ```

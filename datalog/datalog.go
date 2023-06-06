@@ -11,14 +11,8 @@ var datalog string
 
 func Load(l lisp.Lisp) {
 	// TODO: should fail if kanren hasnt been loaded
-	sexprs, err := lisp.Multiparse(datalog)
+	err := l.Load(datalog)
 	if err != nil {
 		panic(err)
-	}
-	for _, def := range sexprs {
-		_, err := l.EvalExpr(def)
-		if err != nil {
-			panic(err)
-		}
 	}
 }

@@ -53,7 +53,7 @@ func startREPL() {
 	// REPL is now restarted on error with env intact
 	l.Eval(`(define restarter (lambda (env)
         (begin (process_flag 'trap_exit #t)
-               (let ((pid (spawn_link (lambda () (begin (process_flag 'eval_with_continuation #t) (REPL env))) (quote ()))))
+               (let ((pid (spawn_link (lambda () (begin (process_flag 'eval_with_continuation #t) (REPL env))) '())))
                     (receive
                         ((reason) (quasiquote (EXIT ,pid ,reason)) ->
                             (if (eqv? reason "normal") #t

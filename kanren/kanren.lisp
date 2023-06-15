@@ -22,7 +22,7 @@
        (if s (unit (cons s (cdr s/c))) mzero)))))
 
 (define unit (lambda (s/c) (cons s/c mzero)))
-(define mzero (quote ()))
+(define mzero '())
 
 (define unify (lambda (u v s)
    (let ((u (walk u s)) (v (walk v s)))
@@ -58,12 +58,12 @@
 (define pull (lambda (s) (if (procedure? s) (pull (s)) s)))
 (define take-all (lambda (s)
    (let ((s (pull s)))
-     (if (null? s) (quote ()) (cons (car s) (take-all (cdr s)))))))
+     (if (null? s) '() (cons (car s) (take-all (cdr s)))))))
 (define take (lambda (n s)
-   (if (= n 0) (quote ())
+   (if (= n 0) '()
      (let ((s (pull s)))
        (cond
-         ((null? s) (quote ()))
+         ((null? s) '())
          (else (cons (car s) (take (- n 1) (cdr s)))))))))
 
 (define-syntax zzz
@@ -97,7 +97,7 @@
 (define mK-reify (lambda (s/c*) (map reify-state/1st-var s/c*)))
 (define reify-state/1st-var (lambda (s/c)
    (let ((v (walk* (var 0) (car s/c))))
-     (walk* v (reify-s v (quote ()))))))
+     (walk* v (reify-s v '())))))
 (define reify-s (lambda (v s)
    (let ((v (walk v s)))
      (cond
@@ -116,8 +116,7 @@
        [(pair? v) (cons (walk* (car v) s) (walk* (cdr v) s))]
        [else v]))))
 
-#| TODO: quote cannot parse pairs that are not lists! |#
-(define empty-state (cons (quote ()) 0))
+(define empty-state (cons '() 0))
 (define call/empty-state (lambda (g) (g empty-state)))
 #| these are also macros in the paper but are already convenient as functions |#
 (define run (lambda (n g) (mK-reify (take n (call/empty-state g)))))

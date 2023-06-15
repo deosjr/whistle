@@ -335,7 +335,7 @@ func TestKanrenDCG(t *testing.T) {
 			// list l is equal to difference list lx/x
 			input: `(define diflist (lambda (l lx x)
                       (conde
-                        [(equalo (quote ()) l) (equalo lx x)]
+                        [(equalo '() l) (equalo lx x)]
                         [(fresh (a d xx)
                            (conso a d l)
                            (diflist d xx x)
@@ -349,7 +349,7 @@ func TestKanrenDCG(t *testing.T) {
 			input: `(run* (fresh (q a x b y c z)
                             (diflist (list 1 2) a x)
                             (diflist (list 3 4) b y)
-                            (equalo z (quote ()))
+                            (equalo z '())
                             (equalo c q)
                             (appendo a x b y c z)))`,
 			want: "((1 2 3 4))",
@@ -360,7 +360,7 @@ func TestKanrenDCG(t *testing.T) {
                             (diflist q a x)
                             (diflist p b y)
                             (diflist (list 1 2 3 4) c z)
-                            (equalo z (quote ()))
+                            (equalo z '()) 
                             (appendo a x b y c z)))`,
 			want: "(() (1) (1 2) (1 2 3) (1 2 3 4))",
 		},
@@ -393,7 +393,7 @@ func TestKanrenDCG(t *testing.T) {
 			input: `(define phrase (lambda (dcgbody l)
                       (fresh (lx x)
                         (diflist l lx x)
-                        (equalo x (quote ()))
+                        (equalo x '())
                         (dcgbody lx x))))`,
 		},
 		{
@@ -407,12 +407,12 @@ func TestKanrenDCG(t *testing.T) {
 		{
 			// does _not_ diverge: use of diflist/3 is the problem
 			// possibly because of the missing 'not' in the alternate clause
-			input: "(run* (fresh (q) (a q (quote ()))))",
+			input: "(run* (fresh (q) (a q '())))",
 			want:  "((1 2 3 4))",
 		},
 		{
 			input: `(define phrase (lambda (dcgbody l)
-                      (dcgbody l (quote ()))))`,
+                      (dcgbody l '())))`,
 		},
 		{
 			// no longer diverges
@@ -525,7 +525,7 @@ func TestKanrenDCG(t *testing.T) {
                       (syntax-rules (conde fresh dcg_)
                         ((_ head (e) (b ...) ...)
                            (define head (lambda (ax x)
-                             (conde [(fresh (e) (dcg_ ax x b ...))] ...)))))))`,
+                             (conde [(fresh (e) (dcg_ ax x b ...))] ...))))))`,
 		},
 		{
 			input: `(dcg palindrome (e)
@@ -569,7 +569,7 @@ func TestKanrenDCG(t *testing.T) {
                       (syntax-rules (conde fresh dcg_)
                         ((_ head (arg) (u v) (b ...) ...)
                            (define head (lambda (arg ax x)
-                             (conde [(fresh (u v) (dcg_ ax x b ...))] ...)))))))`,
+                             (conde [(fresh (u v) (dcg_ ax x b ...))] ...))))))`,
 		},
 		{
 			input: `(define-syntax dcg_
@@ -587,13 +587,13 @@ func TestKanrenDCG(t *testing.T) {
 		},
 		{
 			input: `(dcg reversal (l) (a d)
-                      ((escape (equalo l (quote ()))) (list))
+                      ((escape (equalo l '())) (list))
                       ((escape (conso a d l)) (reversal d) (list a)))`,
 		},
 		{
 			// TODO: phrase with dcgbody taking args
 			// NOTE: right now run* diverges
-			input: "(run 1 (fresh (q r) (equalo r (list 1 2 3 4)) (reversal q r (quote ()))))",
+			input: "(run 1 (fresh (q r) (equalo r (list 1 2 3 4)) (reversal q r '())))",
 			want:  "((4 3 2 1))",
 		},
 	} {

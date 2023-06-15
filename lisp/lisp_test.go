@@ -119,6 +119,14 @@ func TestLisp(t *testing.T) {
 			input: "(cons 1 (cons 1 2))",
 			want:  "(1 1 . 2)",
 		},
+		{
+			input: "'()",
+			want:  "()",
+		},
+		{
+			input: `"hello"`,
+			want:  `"hello"`,
+		},
 	} {
 		p, err := parse(tt.input)
 		if err != nil {

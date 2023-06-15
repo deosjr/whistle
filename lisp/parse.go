@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // TODO: read from stream of input, maybe eval as we parse valid sexpressions
@@ -18,17 +20,7 @@ func ParseFile(filename string) ([]SExpression, error) {
 }
 
 func Multiparse(file string) ([]SExpression, error) {
-	tokens := tokenize(file)
-	exprs := []SExpression{}
-	for len(tokens) > 0 {
-		e, rem, err := readFromTokens(tokens)
-		if err != nil {
-			return nil, err
-		}
-		exprs = append(exprs, e)
-		tokens = rem
-	}
-	return exprs, nil
+	return multiparse(file)
 }
 
 func mustParse(program string) SExpression {
@@ -39,105 +31,174 @@ func mustParse(program string) SExpression {
 	return p
 }
 
+type parsed struct {
+	sexp    SExpression
+	special parseConst
+}
+
+type parseConst uint8
+
+const (
+	none parseConst = iota
+	bracket
+	quote
+	quasiquote
+	unquote
+)
+
 func parse(program string) (SExpression, error) {
-	s := tokenize(program)
-	p, _, err := readFromTokens(s)
-	return p, err
+	list, err := multiparse(program)
+	if err != nil {
+		return nil, err
+	}
+	return list[0], nil
 }
 
-func tokenize(s string) []string {
-	s = strings.ReplaceAll(s, "[", "(")
-	s = strings.ReplaceAll(s, "]", ")")
-	s = strings.ReplaceAll(s, "(", " ( ")
-	s = strings.ReplaceAll(s, ")", " ) ")
-	tokenized := []string{}
-	fields := strings.Fields(s)
-	// pasting string escaped stuff back together..
-	str := ""
-	comment := false
-	for i := 0; i < len(fields); i++ {
-		ss := fields[i]
-		if len(str) == 0 && ss == "#|" {
-			comment = true
-			continue
+func multiparse(program string) ([]SExpression, error) {
+	stack := []parsed{}
+	for len(program) > 0 {
+		token, p, err := nextToken(program)
+		if err != nil {
+			return nil, err
 		}
-		if len(str) == 0 && comment && ss == "|#" {
-			comment = false
-			continue
-		}
-		if comment {
-			continue
-		}
-		if len(str) == 0 && strings.HasPrefix(ss, `"`) {
-			if len(ss) > 1 && strings.HasSuffix(ss, `"`) {
-				tokenized = append(tokenized, ss)
-				continue
-			}
-			str = ss
-			continue
-		}
-		if len(str) > 0 {
-			str += " " + ss
-			if strings.HasSuffix(ss, `"`) {
-				tokenized = append(tokenized, str)
-				str = ""
-			}
-			continue
-		}
-		tokenized = append(tokenized, ss)
-	}
-	return tokenized
-}
-
-func readFromTokens(tokens []string) (SExpression, []string, error) {
-	if len(tokens) == 0 {
-		return nil, nil, fmt.Errorf("syntax error")
-	}
-	token := tokens[0]
-	tokens = tokens[1:]
-	switch token {
-	case "(":
-		list := []SExpression{}
-		for tokens[0] != ")" {
-			parsed, t, err := readFromTokens(tokens)
+		program = p
+		// TODO: can we change this switch to a map and include reader macros that way?
+		switch token {
+		case "(", "[":
+			stack = append(stack, parsed{special: bracket})
+		case ")", "]":
+			s, err := simplifyStack(stack)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
-			if len(t) == 0 {
-				return nil, nil, fmt.Errorf("syntax error")
+			stack = s
+		case "'":
+			stack = append(stack, parsed{special: quote})
+		case "`":
+			stack = append(stack, parsed{special: quasiquote})
+		case ",":
+			stack = append(stack, parsed{special: unquote})
+		case `"`:
+			var s []byte
+			for len(program) > 0 {
+				r, size := utf8.DecodeRuneInString(program)
+				if size == 0 {
+					return nil, fmt.Errorf(`unclosed string quote '"'`)
+				}
+				program = program[size:]
+				if r == '"' {
+					break
+				}
+				s = utf8.AppendRune(s, r)
 			}
-			tokens = t
-			list = append(list, parsed)
+			stack = append(stack, parsed{sexp: NewPrimitive(string(s))})
+		default:
+			e := atom(token)
+			if len(stack) > 0 {
+				p := stack[len(stack)-1]
+				switch p.special {
+				case quote:
+					e = list2cons(NewSymbol("quote"), e)
+					stack = stack[:len(stack)-1]
+				case quasiquote:
+					e = list2cons(NewSymbol("quasiquote"), e)
+					stack = stack[:len(stack)-1]
+				case unquote:
+					e = list2cons(NewSymbol("unquote"), e)
+					stack = stack[:len(stack)-1]
+				}
+			}
+			stack = append(stack, parsed{sexp: e})
 		}
-		if err := syntaxCheck(list); err != nil {
-			return nil, nil, err
-		}
-		return list2cons(list...), tokens[1:], nil
-	case ")":
-		return nil, nil, fmt.Errorf("unexpected ')'")
-	default:
-		return atom(token), tokens, nil
 	}
+
+	list := []SExpression{}
+	for _, p := range stack {
+		if p.sexp == nil {
+			return nil, fmt.Errorf("syntax error")
+		}
+		list = append(list, p.sexp)
+	}
+
+	return list, nil
+}
+
+func nextToken(program string) (string, string, error) {
+	program = strings.TrimSpace(program)
+	// multiline comment: read until |# and ignore
+	for strings.HasPrefix(program, "#|") {
+		_, rest, found := strings.Cut(program, "|#")
+		if !found {
+			return "", "", fmt.Errorf("missing matching comment end |#")
+		}
+		program = rest
+		program = strings.TrimSpace(program)
+	}
+
+	var token []byte
+
+	for len(program) > 0 {
+		r, size := utf8.DecodeRuneInString(program)
+		if strings.ContainsRune("()[]'\",`", r) {
+			if len(token) == 0 {
+				return string(r), program[size:], nil
+			}
+			return string(token), program, nil
+		}
+		if unicode.IsSpace(r) {
+			break
+		}
+		program = program[size:]
+		token = utf8.AppendRune(token, r)
+	}
+	return string(token), program, nil
 }
 
 func atom(token string) SExpression {
 	if n, err := strconv.ParseFloat(token, 64); err == nil {
 		return NewPrimitive(n)
 	}
-	if token[0] == token[len(token)-1] && token[0] == '"' {
-		return NewPrimitive(token[1 : len(token)-1])
-	}
-	// TODO unquote syntax only works on symbols, not lists atm!
-	if token[0] == ',' {
-		unquote, _, _ := readFromTokens([]string{"(", "unquote", token[1:], ")"})
-		return unquote
-	}
-	// TODO quote syntax only works on symbols, not lists atm!
-	if token[0] == '\'' {
-		quote, _, _ := readFromTokens([]string{"(", "quote", token[1:], ")"})
-		return quote
-	}
 	return NewSymbol(token)
+}
+
+// we just consumed a closing bracket, find matching opening bracket from top of stack
+// optionally modify with (quasi/un)quote (TODO: recursive)
+// push the resulting Pair back on the stack
+func simplifyStack(stack []parsed) ([]parsed, error) {
+	list := []SExpression{}
+	for len(stack) > 0 {
+		p := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		switch p.special {
+		case bracket:
+			rev := make([]SExpression, len(list))
+			for i, v := range list {
+				rev[len(list)-1-i] = v
+			}
+			if err := syntaxCheck(rev); err != nil {
+				return nil, err
+			}
+			e := list2cons(rev...)
+			if len(stack) > 0 {
+				pp := stack[len(stack)-1]
+				switch pp.special {
+				case quote:
+					e = list2cons(NewSymbol("quote"), e)
+					stack = stack[:len(stack)-1]
+				case quasiquote:
+					e = list2cons(NewSymbol("quasiquote"), e)
+					stack = stack[:len(stack)-1]
+				case unquote:
+					e = list2cons(NewSymbol("unquote"), e)
+					stack = stack[:len(stack)-1]
+				}
+			}
+			stack = append(stack, parsed{sexp: e})
+			return stack, nil
+		}
+		list = append(list, p.sexp)
+	}
+	return nil, fmt.Errorf("unexpected ')'")
 }
 
 // check syntactic form of some builtins
@@ -154,50 +215,54 @@ func syntaxCheck(list []SExpression) error {
 	switch list[0].AsSymbol() {
 	case "if":
 		if len(list) != 3 && len(list) != 4 {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 	case "begin":
 		if len(list) == 1 {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 	case "quote":
 		if len(list) != 2 {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 	case "define":
 		if len(list) != 3 {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 		if !list[1].IsSymbol() {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 	case "define-syntax":
 		if len(list) != 3 {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 		if !list[1].IsSymbol() {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 	case "syntax-rules":
 		if !list[1].IsPair() {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 		for _, e := range list[2:] {
 			if !e.IsPair() {
-				return fmt.Errorf("invalid syntax %s", list2cons(list...))
+				return syntaxError(list)
 			}
 			p := cons2list(e.AsPair())
 			if len(p) != 2 {
-				return fmt.Errorf("invalid syntax %s", list2cons(list...))
+				return syntaxError(list)
 			}
 		}
 	case "lambda":
 		if len(list) != 3 {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 		if !list[1].IsPair() {
-			return fmt.Errorf("invalid syntax %s", list2cons(list...))
+			return syntaxError(list)
 		}
 	}
 	return nil
+}
+
+func syntaxError(list []SExpression) error {
+	return fmt.Errorf("invalid syntax %s", list2cons(list...))
 }

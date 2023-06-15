@@ -39,19 +39,19 @@ func TestErlangReceiveMacro(t *testing.T) {
 		},
 		{
 			input: `(define pid (let ((this (self)))
-                      (spawn rec (quote (this)))))`,
+                      (spawn rec '(this))))`,
 		},
 		{
 			// doesnt match anything, ignored in mailbox!
-			input: "(send pid (quote (4 'request)))",
+			input: "(send pid '(4 'request))",
 			want:  "(4 (quote request))",
 		},
 		{
-			input: "(send pid (quote (2 'request)))",
+			input: "(send pid '(2 'request))",
 			want:  "(2 (quote request))",
 		},
 		{
-			input: "(receive ((x) (quasiquote (,x 'response)) -> x))",
+			input: "(receive ((x) `(,x 'response) -> x))",
 			want:  "(quote normal)",
 		},
 		{
@@ -66,10 +66,10 @@ func TestErlangReceiveMacro(t *testing.T) {
                       (receive 
                         ((priority message) (quasiquote (,priority ,message)) (when (equalo priority 3)) ->
                           (cons message (normal)))
-                        (after 0 -> (quote ()) )))))`,
+                        (after 0 -> '() ))))`,
 		},
 		{
-			input: "(begin (send (self) (quote (1 high))) (send (self) (quote (3 low))) (send (self) (quote (3 low))) (send (self) (quote (1 high))))",
+			input: "(begin (send (self) '(1 high)) (send (self) '(3 low)) (send (self) '(3 low)) (send (self) '(1 high)))",
 			want:  "(1 high)",
 		},
 		{
@@ -108,12 +108,12 @@ func TestErlangExit(t *testing.T) {
 			input: "(define myproc (lambda () (begin (sleep 1000) (exit 'reason))))",
 		},
 		{
-			input: "(spawn myproc (quote ()))",
+			input: "(spawn myproc '())",
 			want:  "<02>",
 			wait:  true,
 		},
 		{
-			input:   "(spawn_link myproc (quote ()))",
+			input:   "(spawn_link myproc '())",
 			want:    "<03>",
 			wait:    true,
 			wantErr: "** exception error: reason",
@@ -121,10 +121,10 @@ func TestErlangExit(t *testing.T) {
 		{
 			input: `(define chain (lambda (n)
                       (if (eqv? n 0) (receive ((x) x -> #t) (after 500 -> (exit "chain dies here")))
-                      (let ((pid (spawn (lambda () (chain (- n 1))) (quote ()) ))) (link pid) (receive ((x) x -> #t))))))`,
+                      (let ((pid (spawn (lambda () (chain (- n 1))) '() ))) (link pid) (receive ((x) x -> #t))))))`,
 		},
 		{
-			input:   "(spawn_link chain (quote (3)))",
+			input:   "(spawn_link chain '(3))",
 			want:    "<05>", // <04> is the restarted main proc after last error
 			wait:    true,
 			wantErr: `** exception error: "chain dies here"`,
@@ -133,7 +133,7 @@ func TestErlangExit(t *testing.T) {
 			input: "(process_flag 'trap_exit #t)",
 		},
 		{
-			input: "(spawn_link chain (quote (3)))",
+			input: "(spawn_link chain '(3))",
 			want:  "<10>", // previous chain x3 + another main restart, so main is <09> now
 			wait:  true,
 		},

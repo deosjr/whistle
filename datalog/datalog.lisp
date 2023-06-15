@@ -3,7 +3,7 @@
    split into EDB (extensional, input), IDB (intentional, derived), and RDB (rules) |#
 (define dl_edb (make-hashmap))
 (define dl_idb (make-hashmap))
-(define dl_rdb (quote ()))
+(define dl_rdb '())
 
 #| further split into entity/attr indices etc to optimise search
    NOTE: these will include derived tuples |#
@@ -55,10 +55,10 @@
 (define-syntax dl_find
    (syntax-rules (where run* equalo dl_edb dl_idb dl_vars let list->set cons eval hashmap-keys fresh dl_findo)
      ((_ x where ( match ... ))
-      (let ((vars (list->set (dl_vars (quote (x match ...)))))
+      (let ((vars (list->set (dl_vars '(x match ...))))
             (edb (hashmap-keys dl_edb))
             (idb (hashmap-keys dl_idb)))
-        (run* (eval (cons 'fresh (cons (cons 'q vars) (quote ((equalo q (quasiquote x)) (dl_findo (quasiquote match) edb idb) ...))))))))))
+        (run* (eval (cons 'fresh (cons (cons 'q vars) '((equalo q `x) (dl_findo `match edb idb) ...)))))))))
 
 #| TODO: start at breaking out logic of dl_find macro so we can use indices and speed this up a bit |#
 (define dl_findo (lambda (m edb idb)
@@ -76,14 +76,14 @@
      (cond
        [(dl_var? x) (cons x acc)]
        [(pair? x) (append (dl_vars x) acc)]
-       [else acc])) l (quote ())))))
+       [else acc])) l '()))))
 
 #| introduce a rule into the (separate!) rule db
    TODO: only deals with arity/2 predicates atm |#
 (define-syntax dl_rule
    (syntax-rules (list dl_assert_rule :-)
      ((_ (head hx hy) :- (body bx by) ...)
-      (dl_assert_rule (quote (hx head hy)) (list (quote (bx body by)) ...)))))
+      (dl_assert_rule '(hx head hy) (list '(bx body by) ...)))))
 
 (define dl_assert_rule (lambda (head body)
   (set! dl_rdb (cons (cons head body) dl_rdb))))
@@ -113,7 +113,7 @@
 (define dl_apply_rule (lambda (rule)
    (let ((head (car rule))
          (body (cdr rule)))
-     (eval (quasiquote (dl_find ,head where ,body))))))
+     (eval `(dl_find ,head where ,body)))))
 
 #| HELPER FUNCTIONS |#
 (define set-extend! (lambda (m keys)
@@ -147,7 +147,7 @@
        [(null? a) b]
        [(member? b (car a)) (list->set_ (cdr a) b)]
        [else (list->set_ (cdr a) (cons (car a) b))])))
-   (list->set_ x (quote ())))))
+   (list->set_ x '()))))
 
 (define set_difference (lambda (a b) (begin
    (define check_keys (lambda (k m)

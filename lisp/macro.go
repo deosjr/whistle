@@ -13,7 +13,7 @@ const underscore = "_"
 var macromap map[string]transformer
 
 func initMacromap() {
-    macromap = map[string]transformer{}
+	macromap = map[string]transformer{}
 	// TODO: needs implementation of literals in macro rules
 	macromap["cond"] = transformer_cond
 	// TODO: needs a 'begin' in lambda because my lambda implementation only takes 1 body
@@ -101,7 +101,7 @@ type pattern struct {
 }
 
 func gensym() Symbol {
-	return Symbol("gensym" + fmt.Sprint(rand.Intn(9999999999)))
+	return Symbol("gensym" + fmt.Sprint(rand.Intn(999999999)))
 }
 
 // build=true analyses pattern and builds up a gensym lookup table

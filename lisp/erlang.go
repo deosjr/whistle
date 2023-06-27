@@ -130,7 +130,7 @@ func SetPidFuncForTest() {
 }
 
 func generatePid() string {
-	return "<pid" + fmt.Sprint(rand.Intn(9999999999)) + ">"
+	return "<pid" + fmt.Sprint(rand.Intn(999999999)) + ">"
 }
 
 func self(p *process, env *Env, args []SExpression) (SExpression, error) {

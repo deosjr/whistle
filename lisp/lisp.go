@@ -8,6 +8,9 @@ type Lisp struct {
 }
 
 func New() Lisp {
+    if macromap == nil {
+        initMacromap()
+    }
 	p := newProcess()
 	env := GlobalEnv()
 	return Lisp{p, env}

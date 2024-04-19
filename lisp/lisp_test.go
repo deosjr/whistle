@@ -127,6 +127,10 @@ func TestLisp(t *testing.T) {
 			input: `"hello"`,
 			want:  `"hello"`,
 		},
+		{
+			input: `"\"hello\""`,
+			want:  `"\"hello\""`,
+		},
 	} {
 		p, err := parse(tt.input)
 		if err != nil {

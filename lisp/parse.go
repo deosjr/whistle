@@ -89,14 +89,14 @@ func multiparse(program string) ([]SExpression, error) {
 				if r == '"' {
 					break
 				}
-                if r == '\\' {
-				    next, n := utf8.DecodeRuneInString(program)
-                    if next == '"' {
-				        program = program[n:]
-				        s = utf8.AppendRune(s, next)
-                        continue
-                    }
-                }
+				if r == '\\' {
+					next, n := utf8.DecodeRuneInString(program)
+					if next == '"' {
+						program = program[n:]
+						s = utf8.AppendRune(s, next)
+						continue
+					}
+				}
 				s = utf8.AppendRune(s, r)
 			}
 			stack = append(stack, parsed{sexp: NewPrimitive(string(s))})

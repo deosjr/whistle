@@ -11,44 +11,44 @@ import (
 
 func GlobalEnv() *Env {
 	return &Env{dict: map[Symbol]SExpression{
-		"+":               builtinFunc(add),
-		"-":               builtinFunc(sub),
-		"*":               builtinFunc(mul),
-		"/":               builtinFunc(div),
-		"=":               builtinFunc(eq),
-		"<":               builtinFunc(lt),
-		">":               builtinFunc(gt),
-		"<=":              builtinFunc(leq),
-		">=":              builtinFunc(geq),
-		"mod":             builtinFunc(mod),
-		"#t":              NewPrimitive(true),
-		"#f":              NewPrimitive(false),
-		"not":             builtinFunc(not),
-		"pi":              NewPrimitive(math.Pi),
-		"newline":         NewPrimitive("\n"),
-		"number?":         builtinFunc(isnumber),
-		"pair?":           builtinFunc(ispair),
-		"symbol?":         builtinFunc(issymbol),
-		"car":             builtinFunc(car),
-		"cdr":             builtinFunc(cdr),
-		"cons":            builtinFunc(cons),
-		"null?":           builtinFunc(isnull),
-		"procedure?":      builtinFunc(isprocedure),
-		"eqv?":            builtinFunc(isequivalent),
-		"display":         builtinFunc(display),
-		"display-defined": builtinFunc(displayDefined),
-		"exit":            builtinFunc(exit),
-		"string-append":   builtinFunc(stringappend),
-		"number->string":  builtinFunc(number2string),
-		"string->symbol":  builtinFunc(string2symbol),
-		"symbol->string":  builtinFunc(symbol2string),
-		"prefix?":         builtinFunc(hasPrefix),
-		"gensym":          builtinFunc(gensymFunc),
-		"eval":            builtinFunc(eval),
-		"read":            builtinFunc(read),
-		"read-string":     builtinFunc(readString),
-		"environment":     builtinFunc(environment),
-		"listing":         builtinFunc(listing),
+		"+":              builtinFunc(add),
+		"-":              builtinFunc(sub),
+		"*":              builtinFunc(mul),
+		"/":              builtinFunc(div),
+		"=":              builtinFunc(eq),
+		"<":              builtinFunc(lt),
+		">":              builtinFunc(gt),
+		"<=":             builtinFunc(leq),
+		">=":             builtinFunc(geq),
+		"mod":            builtinFunc(mod),
+		"#t":             NewPrimitive(true),
+		"#f":             NewPrimitive(false),
+		"not":            builtinFunc(not),
+		"pi":             NewPrimitive(math.Pi),
+		"newline":        NewPrimitive("\n"),
+		"number?":        builtinFunc(isnumber),
+		"pair?":          builtinFunc(ispair),
+		"symbol?":        builtinFunc(issymbol),
+		"car":            builtinFunc(car),
+		"cdr":            builtinFunc(cdr),
+		"cons":           builtinFunc(cons),
+		"null?":          builtinFunc(isnull),
+		"procedure?":     builtinFunc(isprocedure),
+		"eqv?":           builtinFunc(isequivalent),
+		"display":        builtinFunc(display),
+		"proc->string":   builtinFunc(proc2string),
+		"exit":           builtinFunc(exit),
+		"string-append":  builtinFunc(stringappend),
+		"number->string": builtinFunc(number2string),
+		"string->symbol": builtinFunc(string2symbol),
+		"symbol->string": builtinFunc(symbol2string),
+		"prefix?":        builtinFunc(hasPrefix),
+		"gensym":         builtinFunc(gensymFunc),
+		"eval":           builtinFunc(eval),
+		"read":           builtinFunc(read),
+		"read-string":    builtinFunc(readString),
+		"environment":    builtinFunc(environment),
+		"listing":        builtinFunc(listing),
 		// maps
 		"make-hashmap":   builtinFunc(makeHashmap),
 		"hashmap-set!":   builtinFunc(hashmapSet),
@@ -174,13 +174,12 @@ func display(p *process, env *Env, args []SExpression) (SExpression, error) {
 	return NewPrimitive(true), nil
 }
 
-func displayDefined(p *process, env *Env, args []SExpression) (SExpression, error) {
+func proc2string(p *process, env *Env, args []SExpression) (SExpression, error) {
 	if args[0] == nil {
 		return NewPrimitive(true), nil
 	}
 	def := args[0].AsProcedure().defined()
-	fmt.Printf("(lambda %s %s)", def.params, def.body)
-	return NewPrimitive(true), nil
+	return NewPrimitive(fmt.Sprintf("(lambda %s %s)", def.params, def.body)), nil
 }
 
 func exit(p *process, env *Env, args []SExpression) (SExpression, error) {

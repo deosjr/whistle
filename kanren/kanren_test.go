@@ -236,6 +236,19 @@ func TestLearnKanren(t *testing.T) {
 			input: "(run* ((lambda (x) (bind ((five-six-seven x) empty-state) (seven-eight-nine x))) (var 0)))",
 			want:  "(7)",
 		},
+        {
+            input: "(define fives (lambda (x) (disj (equalo x 5) (zzz (fives x)))))",
+        },
+        {
+            input: "(define sixes (lambda (x) (disj (equalo x 6) (zzz (sixes x)))))",
+        },
+        {
+            input: "(define sevens (lambda (x) (disj (equalo x 7) (zzz (sevens x)))))",
+        },
+        {
+            input: "(run 10 (fresh (x) (disj+ (fives x) (sixes x) (sevens x))))",
+            want: "(5 5 6 5 7 5 6 5 7 5)",
+        },
 		{
 			// can we define an ifthenelse now that we know how mplus/bind work?
 			// would it be pure? why/why not? how does this work with infinite streams?

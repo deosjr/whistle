@@ -16,7 +16,12 @@ func New() Lisp {
 	return Lisp{p, env}
 }
 
-func (l Lisp) Eval(input string) (SExpression, error) {
+func (l Lisp) Eval(input string) (result SExpression, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
 	sexp, err := parse(input)
 	if err != nil {
 		return nil, err
@@ -28,7 +33,12 @@ func (l Lisp) Eval(input string) (SExpression, error) {
 	return l.process.evalEnv(l.Env, sexp)
 }
 
-func (l Lisp) EvalExpr(e SExpression) (SExpression, error) {
+func (l Lisp) EvalExpr(e SExpression) (result SExpression, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
 	if l.process.evalWithContinuation {
 		id := func(x SExpression) SExpression { return x }
 		return l.process.evalEnvK(l.Env, e, id), nil

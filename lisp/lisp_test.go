@@ -188,6 +188,38 @@ func TestTailRecursion(t *testing.T) {
 	}
 }
 
+func TestPanicRecovery(t *testing.T) {
+	for i, tt := range []struct {
+		setup string
+		input string
+	}{
+		{
+			// car on a non-pair atom panics inside the builtin
+			input: "(car 42)",
+		},
+		{
+			// cdr on a non-pair atom panics inside the builtin
+			input: "(cdr 42)",
+		},
+		{
+			// symbol bound to an atom, then car applied — mirrors the eliza crash
+			setup: "(define yes #t)",
+			input: "(car yes)",
+		},
+	} {
+		l := New()
+		if tt.setup != "" {
+			if _, err := l.Eval(tt.setup); err != nil {
+				t.Fatalf("%d) setup error: %v", i, err)
+			}
+		}
+		_, err := l.Eval(tt.input)
+		if err == nil {
+			t.Errorf("%d) expected error from %q, got nil", i, tt.input)
+		}
+	}
+}
+
 func TestCopyEnv(t *testing.T) {
 	// TODO: copyEnv doesnt copy envs enclosed in lambda defs! race conditions!
 	main := newProcess()
